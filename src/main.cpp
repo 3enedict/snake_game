@@ -1,4 +1,5 @@
 #include "Vulkan.h"
+#include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -13,6 +14,7 @@ const bool enableValidationLayers = false;
 const bool enableValidationLayers = true;
 #endif
 
+
 int main() {
   uint32_t width = 1280;
   uint32_t height = 720;
@@ -25,6 +27,10 @@ int main() {
 
   GLFWwindow* window = initWindow(width, height);
   VkInstance instance = initVulkan(enableValidationLayers, validationLayers, &debugMessenger);
+  VkPhysicalDevice physicalDevice = pickPhysicalDevice(instance);
+  VkPhysicalDeviceProperties properties;
+  vkGetPhysicalDeviceProperties(physicalDevice, &properties);
+  std::cout << "Selected GPU name : " << properties.deviceName << std::endl;
 
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
