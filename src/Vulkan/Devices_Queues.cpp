@@ -1,3 +1,5 @@
+#include <cstdlib>
+#include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -6,6 +8,8 @@
 #include <optional>
 #include <iostream>
 #include <vector>
+
+/* Physical devices and queue families */
 
 bool QueueFamilyIndices::isComplete() {
   return graphicsFamily.has_value();
@@ -60,4 +64,46 @@ VkPhysicalDevice pickPhysicalDevice(VkInstance instance) {
 
   std::cerr << "Error : Failed to find a suitable GPU!" << std::endl;
   exit(EXIT_FAILURE);
+}
+
+/* Logical device and queues */
+
+VkDevice createLogicalDevice(VkPhysicalDevice physicalDevice, std::vector<const char*> validationLayers, bool enableValidationLayers) {
+  QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+
+  VkDeviceQueueCreateInfo queueCreateInfo{};
+  queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+  queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
+  queueCreateInfo.queueCount = 1;
+
+  float queuePriority = 1.0f;
+  queueCreateInfo.pQueuePriorities = &queuePriority;
+
+  VkPhysicalDeviceFeatures deviceFeatures{};
+
+  VkDeviceCreateInfo createInfo{};
+  createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+
+  createInfo.pQueueCreateInfos = &queueCreateInfo;
+  createInfo.queueCreateInfoCount = 1;
+
+  createInfo.pEnabledFeatures = &deviceFeatures;
+
+  createInfo.enabledExtensionCount = 0;
+
+  if (enableValidationLayers) {
+    createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+    createInfo.ppEnabledLayerNames = validationLayers.data();
+  } else {
+    createInfo.enabledLayerCount = 0;
+  }
+
+  VkDevice device;
+
+  if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
+    std::cerr << "Error : Failed to create logical device!" << std::endl;
+    exit(EXIT_FAILURE);
+  }
+
+  return device;
 }

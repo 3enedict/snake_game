@@ -1,3 +1,4 @@
+#include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -20,10 +21,12 @@ GLFWwindow* initWindow(uint32_t width, uint32_t height) {
   return window;
 }
 
-void cleanup(bool enableValidationLayers, VkInstance instance, GLFWwindow* window, VkDebugUtilsMessengerEXT debugMessenger) {
+void cleanup(bool enableValidationLayers, VkInstance instance, GLFWwindow* window, VkDebugUtilsMessengerEXT debugMessenger, VkDevice device) {
   if (enableValidationLayers) {
     DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
   }
+
+    vkDestroyDevice(device, nullptr);
 
   vkDestroyInstance(instance, nullptr);
 

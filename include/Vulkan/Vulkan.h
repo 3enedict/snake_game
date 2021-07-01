@@ -7,4 +7,4 @@
 
 
 GLFWwindow* initWindow(uint32_t width, uint32_t height);
-void cleanup(bool enableValidationLayers, VkInstance instance, GLFWwindow* window, VkDebugUtilsMessengerEXT debugMessenger);
+void cleanup(bool enableValidationLayers, VkInstance instance, GLFWwindow* window, VkDebugUtilsMessengerEXT debugMessenger, VkDevice device);

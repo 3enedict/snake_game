@@ -33,10 +33,11 @@ int main() {
   VkPhysicalDeviceProperties properties;
   vkGetPhysicalDeviceProperties(physicalDevice, &properties);
   std::cout << "Selected GPU name : " << properties.deviceName << std::endl;
+  VkDevice device = createLogicalDevice(physicalDevice, validationLayers, enableValidationLayers);
 
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
   }
 
-  cleanup(enableValidationLayers, instance, window, debugMessenger);
+  cleanup(enableValidationLayers, instance, window, debugMessenger, device);
 }
