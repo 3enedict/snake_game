@@ -1,7 +1,9 @@
-#include "Vulkan.h"
-#include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+
+#include <Vulkan.h>
+#include <Instance.h>
+#include <Device_Queues.h>
 
 #include <iostream>
 #include <vector>
