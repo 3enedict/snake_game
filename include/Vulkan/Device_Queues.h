@@ -8,14 +8,15 @@
 
 struct QueueFamilyIndices {
   std::optional<uint32_t> graphicsFamily;
+  std::optional<uint32_t> presentFamily;
 
   bool isComplete();
 };
 
-QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
+QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device, VkSurfaceKHR surface);
 
-bool isDeviceSuitable(VkPhysicalDevice device);
+bool isDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface);
 
-VkPhysicalDevice pickPhysicalDevice(VkInstance instance);
+VkPhysicalDevice pickPhysicalDevice(VkInstance instance, VkSurfaceKHR surface);
 
-VkDevice createLogicalDevice(VkPhysicalDevice physicalDevice, std::vector<const char*> validationLayers, bool enableValidationLayers);
+VkDevice createLogicalDevice(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, VkQueue& graphicsQueue, VkQueue& presentQueue, std::vector<const char*> validationLayers, bool enableValidationLayers);

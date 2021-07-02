@@ -33,13 +33,15 @@ int main() {
 
   VkSurfaceKHR surface = createSurface(instance, window);
 
-  VkPhysicalDevice physicalDevice = pickPhysicalDevice(instance);
+  VkPhysicalDevice physicalDevice = pickPhysicalDevice(instance, surface);
 
   VkPhysicalDeviceProperties properties;
   vkGetPhysicalDeviceProperties(physicalDevice, &properties);
   std::cout << "Selected GPU name : " << properties.deviceName << std::endl;
 
-  VkDevice device = createLogicalDevice(physicalDevice, validationLayers, enableValidationLayers);
+  VkQueue graphicsQueue;
+  VkQueue presentQueue;
+  VkDevice device = createLogicalDevice(physicalDevice, surface, graphicsQueue, presentQueue, validationLayers, enableValidationLayers);
 
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
