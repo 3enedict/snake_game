@@ -4,6 +4,7 @@
 #include <Vulkan.h>
 #include <Instance.h>
 #include <Device_Queues.h>
+#include <Surface.h>
 
 #include <iostream>
 #include <vector>
@@ -25,19 +26,24 @@ int main() {
     "VK_LAYER_KHRONOS_validation"
   };
 
-  VkDebugUtilsMessengerEXT debugMessenger;
-
   GLFWwindow* window = initWindow(width, height);
+
+  VkDebugUtilsMessengerEXT debugMessenger;
   VkInstance instance = initVulkan(enableValidationLayers, validationLayers, &debugMessenger);
+
+  VkSurfaceKHR surface = createSurface(instance, window);
+
   VkPhysicalDevice physicalDevice = pickPhysicalDevice(instance);
+
   VkPhysicalDeviceProperties properties;
   vkGetPhysicalDeviceProperties(physicalDevice, &properties);
   std::cout << "Selected GPU name : " << properties.deviceName << std::endl;
+
   VkDevice device = createLogicalDevice(physicalDevice, validationLayers, enableValidationLayers);
 
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
   }
 
-  cleanup(enableValidationLayers, instance, window, debugMessenger, device);
+  cleanup(enableValidationLayers, instance, window, debugMessenger, device, surface);
 }

@@ -21,12 +21,14 @@ GLFWwindow* initWindow(uint32_t width, uint32_t height) {
   return window;
 }
 
-void cleanup(bool enableValidationLayers, VkInstance instance, GLFWwindow* window, VkDebugUtilsMessengerEXT debugMessenger, VkDevice device) {
+void cleanup(bool enableValidationLayers, VkInstance instance, GLFWwindow* window, VkDebugUtilsMessengerEXT debugMessenger, VkDevice device, VkSurfaceKHR surface) {
   if (enableValidationLayers) {
     DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
   }
 
-    vkDestroyDevice(device, nullptr);
+  vkDestroyDevice(device, nullptr);
+
+  vkDestroySurfaceKHR(instance, surface, nullptr);
 
   vkDestroyInstance(instance, nullptr);
 
