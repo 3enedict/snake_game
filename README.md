@@ -1,5 +1,7 @@
 # Building
 
-```cmake -B build
+```bash
+cmake -B build
 make
-./Snake```
+./Snake
+```
