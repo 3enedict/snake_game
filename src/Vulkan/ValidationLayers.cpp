@@ -1,7 +1,7 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-#include <ValidationLayers.h>
+#include "Vulkan.h"
 
 #include <vector>
 #include <cstring>
@@ -37,14 +37,14 @@ void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& create
   createInfo.pfnUserCallback = debugCallback;
 }
 
-bool checkValidationLayerSupport(std::vector<const char*> validationLayers) {
+bool checkValidationLayerSupport(Vulkan& vulkan) {
   uint32_t layerCount;
   vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
 
   std::vector<VkLayerProperties> availableLayers(layerCount);
   vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
 
-  for (const char* layerName : validationLayers) {
+  for (const char* layerName : vulkan.validationLayers) {
     bool layerFound = false;
 
     for (const auto& layerProperties : availableLayers) {

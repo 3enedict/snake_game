@@ -6,13 +6,11 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 file(GLOB_RECURSE source RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
-  src/*.cpp)
-
-file(GLOB include RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
-  include/*)
+  src/*.cpp
+  include/*.h)
 
 add_executable(Snake ${source})
-target_include_directories(Snake PUBLIC ${include})
+target_include_directories(Snake PUBLIC include/)
 
 find_package(Vulkan EXACT REQUIRED)
 

@@ -1,10 +1,7 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-#include <Vulkan.h>
-#include <Instance.h>
-#include <Device_Queues.h>
-#include <Surface.h>
+#include "Vulkan.h"
 
 #include <iostream>
 #include <vector>
@@ -12,40 +9,36 @@
 #include <cstdlib>
 
 #ifdef NDEBUG
-const bool enableValidationLayers = false;
+const bool debug = false;
 #else
-const bool enableValidationLayers = true;
+const bool debug = true;
 #endif
 
-
 int main() {
-  uint32_t width = 1280;
-  uint32_t height = 720;
+  Vulkan vulkan;
 
-  std::vector<const char*> validationLayers = {
+  vulkan.width = 1280;
+  vulkan.height = 720;
+  vulkan.name = "Snake";
+
+  vulkan.enableValidationLayers = debug;
+  vulkan.validationLayers = {
     "VK_LAYER_KHRONOS_validation"
   };
 
-  GLFWwindow* window = initWindow(width, height);
-
-  VkDebugUtilsMessengerEXT debugMessenger;
-  VkInstance instance = initVulkan(enableValidationLayers, validationLayers, &debugMessenger);
-
-  VkSurfaceKHR surface = createSurface(instance, window);
-
-  VkPhysicalDevice physicalDevice = pickPhysicalDevice(instance, surface);
+  initWindow(vulkan);
+  initInstance(vulkan);
+  createSurface(vulkan);
+  pickPhysicalDevice(vulkan);
+  createLogicalDevice(vulkan);
 
   VkPhysicalDeviceProperties properties;
-  vkGetPhysicalDeviceProperties(physicalDevice, &properties);
+  vkGetPhysicalDeviceProperties(vulkan.physicalDevice, &properties);
   std::cout << "Selected GPU name : " << properties.deviceName << std::endl;
 
-  VkQueue graphicsQueue;
-  VkQueue presentQueue;
-  VkDevice device = createLogicalDevice(physicalDevice, surface, graphicsQueue, presentQueue, validationLayers, enableValidationLayers);
-
-  while (!glfwWindowShouldClose(window)) {
+  while (!glfwWindowShouldClose(vulkan.window)) {
     glfwPollEvents();
   }
 
-  cleanup(enableValidationLayers, instance, window, debugMessenger, device, surface);
+  cleanup(vulkan);
 }
