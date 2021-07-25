@@ -34,6 +34,8 @@ struct Vulkan {
   QueueFamilyIndices indices;
   VkQueue graphicsQueue;
   VkQueue presentQueue;
+
+  std::vector<const char*> deviceExtensions;
 };
 
 void initWindow(Vulkan& vulkan);

@@ -26,6 +26,10 @@ int main() {
     "VK_LAYER_KHRONOS_validation"
   };
 
+  vulkan.deviceExtensions = {
+    VK_KHR_SWAPCHAIN_EXTENSION_NAME
+  };
+
   initWindow(vulkan);
   initInstance(vulkan);
   createSurface(vulkan);

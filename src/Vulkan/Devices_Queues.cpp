@@ -46,7 +46,19 @@ void findQueueFamilies(VkPhysicalDevice device, Vulkan& vulkan) {
 bool isDeviceSuitable(VkPhysicalDevice device, Vulkan& vulkan) {
   findQueueFamilies(device, vulkan);
 
-  return vulkan.indices.isComplete();
+  uint32_t extensionCount;
+  vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+
+  std::vector<VkExtensionProperties> availableExtensions(extensionCount);
+  vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
+
+  std::set<std::string> requiredExtensions(vulkan.deviceExtensions.begin(), vulkan.deviceExtensions.end());
+
+  for (const auto& extension : availableExtensions) {
+    requiredExtensions.erase(extension.extensionName);
+  }
+
+  return vulkan.indices.isComplete() && requiredExtensions.empty();
 }
 
 void pickPhysicalDevice(Vulkan& vulkan) {
