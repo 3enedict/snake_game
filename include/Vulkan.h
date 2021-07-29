@@ -7,13 +7,17 @@
 #include <cstdint>
 #include <optional>
 
-/* The QueueFamilyIndices structure is part of the Device and Queues section */
-
 struct QueueFamilyIndices {
   std::optional<uint32_t> graphicsFamily;
   std::optional<uint32_t> presentFamily;
 
   bool isComplete();
+};
+
+struct SwapChainSupportDetails {
+  VkSurfaceCapabilitiesKHR capabilities;
+  std::vector<VkSurfaceFormatKHR> formats;
+  std::vector<VkPresentModeKHR> presentModes;
 };
 
 struct Vulkan {
@@ -36,6 +40,8 @@ struct Vulkan {
   VkQueue presentQueue;
 
   std::vector<const char*> deviceExtensions;
+  SwapChainSupportDetails swapchainDetails;
+  VkSwapchainKHR swapChain;
 };
 
 void initWindow(Vulkan& vulkan);
@@ -65,3 +71,11 @@ void findQueueFamilies(VkPhysicalDevice device, Vulkan& vulkan);
 bool isDeviceSuitable(VkPhysicalDevice device, Vulkan& vulkan);
 void pickPhysicalDevice(Vulkan& vulkan);
 void createLogicalDevice(Vulkan& vulkan);
+
+/* Swap Chain */
+
+void querySwapChainSupport(VkPhysicalDevice device, Vulkan& vulkan);
+VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
+VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
+VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, Vulkan& vulkan);
+void createSwapChain(Vulkan& vulkan);

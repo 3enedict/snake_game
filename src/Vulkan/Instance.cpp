@@ -53,7 +53,7 @@ void initInstance(Vulkan& vulkan) {
   }
 
   if (vkCreateInstance(&createInfo, nullptr, &vulkan.instance) != VK_SUCCESS) {
-    std::cerr << "Error : Failed to create instance!" << std::endl;
+    std::cerr << "Error: Failed to create instance!" << std::endl;
     exit(EXIT_FAILURE);
   }
 

@@ -58,7 +58,13 @@ bool isDeviceSuitable(VkPhysicalDevice device, Vulkan& vulkan) {
     requiredExtensions.erase(extension.extensionName);
   }
 
-  return vulkan.indices.isComplete() && requiredExtensions.empty();
+  bool swapChainAdequate = false;
+  if (requiredExtensions.empty()) {
+    querySwapChainSupport(device, vulkan);
+    swapChainAdequate = !vulkan.swapchainDetails.formats.empty() && !vulkan.swapchainDetails.presentModes.empty();
+  }
+
+  return vulkan.indices.isComplete() && requiredExtensions.empty() && swapChainAdequate;
 }
 
 void pickPhysicalDevice(Vulkan& vulkan) {
@@ -119,7 +125,8 @@ void createLogicalDevice(Vulkan& vulkan) {
 
   createInfo.pEnabledFeatures = &deviceFeatures;
 
-  createInfo.enabledExtensionCount = 0;
+  createInfo.enabledExtensionCount = static_cast<uint32_t>(vulkan.deviceExtensions.size());
+  createInfo.ppEnabledExtensionNames = vulkan.deviceExtensions.data();
 
   if (vulkan.enableValidationLayers) {
     createInfo.enabledLayerCount = static_cast<uint32_t>(vulkan.validationLayers.size());

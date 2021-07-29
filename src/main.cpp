@@ -35,6 +35,7 @@ int main() {
   createSurface(vulkan);
   pickPhysicalDevice(vulkan);
   createLogicalDevice(vulkan);
+  createSwapChain(vulkan);
 
   VkPhysicalDeviceProperties properties;
   vkGetPhysicalDeviceProperties(vulkan.physicalDevice, &properties);
