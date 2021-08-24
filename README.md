@@ -7,7 +7,13 @@ THIS PROJECT IS STILL IN DEVELOPMENT.
 # Building
 
 ```bash
-cmake -B build
-make
-./Snake
+cargo run
 ```
+
+# Testing
+
+```bash
+cargo test -- --test-threads=1
+```
+
+The test-threads option needed to be added because winit only supports being run in the main thread. 
