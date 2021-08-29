@@ -2,5 +2,7 @@ mod vulkan;
 use vulkan::Vulkan;
 
 fn main() {
-    let vulkan = Vulkan::init();
+    let mut vulkan = Vulkan::init();
+
+    vulkan.create_instance();
 }

@@ -2,14 +2,23 @@ extern crate vulkano;
 extern crate winit;
 
 mod instance;
-use instance::VulkanInstance;
+use instance::VkInstance;
 
 use winit::{
-    event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::{EventLoop},
     window::WindowBuilder, 
-    dpi::LogicalSize,
 };
+
+
+#[cfg(all(debug_assertions))]
+const DEBUG: bool = true;
+#[cfg(not(debug_assertions))]
+const DEBUG: bool = false;
+
+const VALIDATION_LAYERS: &[&str] =  &[
+    "VK_LAYER_KHRONOS_validation"
+];
+
 
 pub struct Vulkan {
     width: i32,
@@ -17,19 +26,25 @@ pub struct Vulkan {
     name: String,
 
     event_loop: EventLoop<()>,
-    instance: Option<VulkanInstance>,
+    instance: VkInstance,
 }
 
 impl Vulkan {
     pub fn init() -> Self {
         Self {
-          width: 1920,
-          height: 1080,
-          name: String::from("Vulkan"),
+            width: 1920,
+            height: 1080,
+            name: String::from("Vulkan"),
 
-          event_loop: EventLoop::new(),
-          instance: None,
+            event_loop: EventLoop::new(),
+            instance: VkInstance::new(),
         }
+    }
+
+    pub fn create_instance(&mut self) {
+        self.init_window();
+
+        self.instance.init(&self.name);
     }
 
     fn init_window(&self) {
@@ -37,10 +52,6 @@ impl Vulkan {
             .with_title(&self.name)
             .with_inner_size(winit::dpi::LogicalSize::new(self.width, self.height))
             .build(&self.event_loop);
-    }
-
-    fn create_instance(&mut self) {
-        self.instance = Some(VulkanInstance::new(&self.name));
     }
 }
 
@@ -70,9 +81,9 @@ mod tests {
     }
 
     #[test]
-    fn verify_window_creation() {
-        let vulkan = Vulkan::init();
+    fn verify_instance_creation() {
+        let mut vulkan = Vulkan::init();
 
-        vulkan.init_window();
+        vulkan.create_instance();
     }
 }
