@@ -18,7 +18,7 @@ use crate::vulkan::{
 };
 
 pub struct VkInstance {
-    instance: Option<Arc<Instance>>,
+    pub instance: Option<Arc<Instance>>,
     debug_callback: Option<DebugCallback>,
 }
 
@@ -75,5 +75,9 @@ impl VkInstance {
         DebugCallback::new(self.instance.as_ref().unwrap(), msg_severity, msg_types, |msg| {
             println!("validation layer: {:?}", msg.description);
         }).ok()
+    }
+
+    pub fn get_instance(&self) -> &Arc<Instance> {
+        self.instance.as_ref().unwrap()
     }
 }
