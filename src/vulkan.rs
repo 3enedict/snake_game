@@ -7,6 +7,11 @@ use instance::VkInstance;
 mod physical_device;
 use physical_device::VkPhysicalDevice;
 
+mod logical_device;
+use logical_device::VkLogicalDevice;
+
+mod queue_family;
+
 use winit::{
     event_loop::{EventLoop},
     window::WindowBuilder, 
@@ -31,6 +36,7 @@ pub struct Vulkan {
     event_loop: EventLoop<()>,
     instance: VkInstance,
     physical_device: VkPhysicalDevice,
+    logical_device: VkLogicalDevice,
 }
 
 impl Vulkan {
@@ -43,6 +49,7 @@ impl Vulkan {
             event_loop: EventLoop::new(),
             instance: VkInstance::new(),
             physical_device: VkPhysicalDevice::new(),
+            logical_device: VkLogicalDevice::new(),
         }
     }
 
@@ -51,6 +58,7 @@ impl Vulkan {
 
         self.instance.init(&self.name);
         self.physical_device.init(self.instance.get_instance());
+        self.logical_device.init(self.instance.get_instance(), self.physical_device.get_index());
     }
 
     fn init_window(&self) {
