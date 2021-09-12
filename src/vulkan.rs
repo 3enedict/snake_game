@@ -4,6 +4,9 @@ extern crate winit;
 mod instance;
 use instance::VkInstance;
 
+mod surface;
+use surface::VkSurface;
+
 mod physical_device;
 use physical_device::VkPhysicalDevice;
 
@@ -11,11 +14,6 @@ mod logical_device;
 use logical_device::VkLogicalDevice;
 
 mod queue_family;
-
-use winit::{
-    event_loop::{EventLoop},
-    window::WindowBuilder, 
-};
 
 
 #[cfg(all(debug_assertions))]
@@ -33,8 +31,8 @@ pub struct Vulkan {
     height: i32,
     name: String,
 
-    event_loop: EventLoop<()>,
     instance: VkInstance,
+    surface: VkSurface,
     physical_device: VkPhysicalDevice,
     logical_device: VkLogicalDevice,
 }
@@ -46,28 +44,19 @@ impl Vulkan {
             height: 1080,
             name: String::from("Vulkan"),
 
-            event_loop: EventLoop::new(),
             instance: VkInstance::new(),
+            surface: VkSurface::new(),
             physical_device: VkPhysicalDevice::new(),
             logical_device: VkLogicalDevice::new(),
         }
     }
 
     pub fn setup(&mut self) {
-        self.init_window();
-
         self.instance.init(&self.name);
-        self.physical_device.init(self.instance.get_instance());
-        self.logical_device.init(self.instance.get_instance(), self.physical_device.get_index());
+        self.surface.init(&self.width, &self.height, &self.name, self.instance.get_instance());
+        self.physical_device.init(self.instance.get_instance(), self.surface.get_surface());
+        self.logical_device.init(self.instance.get_instance(), self.surface.get_surface(), self.physical_device.get_index());
     }
-
-    fn init_window(&self) {
-        let _window = WindowBuilder::new()
-            .with_title(&self.name)
-            .with_inner_size(winit::dpi::LogicalSize::new(self.width, self.height))
-            .build(&self.event_loop);
-    }
-
 
 
 
