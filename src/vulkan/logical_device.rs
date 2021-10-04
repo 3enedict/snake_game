@@ -60,4 +60,16 @@ impl VkLogicalDevice {
         self.graphics_queue = Some(queues.next().unwrap());
         self.present_queue = Some(queues.next().unwrap_or_else(|| self.graphics_queue.as_ref().unwrap().clone()));
     }
+
+    fn get_device() -> &Arc<Device> {
+        self.device.as_ref().unwrap()
+    }
+
+    fn get_graphics_queue() -> &Arc<Queue> {
+        self.graphics_queue.as_ref().unwrap()
+    }
+
+    fn get_present_queue() -> &Arc<Queue> {
+        self.present_queue.as_ref().unwrap()
+    }
 }

@@ -15,6 +15,9 @@ use logical_device::VkLogicalDevice;
 
 mod queue_family;
 
+mod swap_chain;
+use swap_chain::VkSwapChain;
+
 
 #[cfg(all(debug_assertions))]
 const DEBUG: bool = true;
@@ -35,6 +38,7 @@ pub struct Vulkan {
     surface: VkSurface,
     physical_device: VkPhysicalDevice,
     logical_device: VkLogicalDevice,
+    swap_chain: VkSwapChain,
 }
 
 impl Vulkan {
@@ -48,14 +52,41 @@ impl Vulkan {
             surface: VkSurface::new(),
             physical_device: VkPhysicalDevice::new(),
             logical_device: VkLogicalDevice::new(),
+            swap_chain: VkSwapChain::new(),
         }
     }
 
     pub fn setup(&mut self) {
-        self.instance.init(&self.name);
-        self.surface.init(&self.width, &self.height, &self.name, self.instance.get_instance());
-        self.physical_device.init(self.instance.get_instance(), self.surface.get_surface());
-        self.logical_device.init(self.instance.get_instance(), self.surface.get_surface(), self.physical_device.get_index());
+        self.instance.init(
+            &self.name,
+            );
+
+        self.surface.init(
+            &self.width, 
+            &self.height, 
+            &self.name, 
+            self.instance.get_instance(),
+            );
+
+        self.physical_device.init(
+            self.instance.get_instance(), 
+            self.surface.get_surface(),
+            );
+
+        self.logical_device.init(
+            self.instance.get_instance(), 
+            self.surface.get_surface(), 
+            self.physical_device.get_index(),
+            );
+
+        self.swap_chain.init(
+            self.instance.get_instance(),
+            self.surface.get_surface(),
+            self.physical_device.get_index(),
+            self.device.get_device(),
+            self.device.get_graphics_queue(),
+            self.device.get_present_queue(),
+            );
     }
 
 
