@@ -46,6 +46,7 @@ fn window_size_dependent_setup(
 
 pub struct Vulkan {
     required_extensions: Option<InstanceExtensions>,
+    instance: Option<Arc<Instance>>,
 }
 
 impl Vulkan {
@@ -53,14 +54,14 @@ impl Vulkan {
 
         Self {
             required_extensions: None,
+            instance: None,
         }
     }
 
     pub fn setup(&mut self) {
         self.get_required_extensions();
 
-        // Now creating the instance.
-        let instance = Instance::new(None, Version::V1_1, self.required_extensions.as_ref().unwrap(), None).unwrap();
+        self.create_instance();
 
         // The objective of this example is to draw a triangle on a window. To do so, we first need to
         // create the window.
@@ -74,7 +75,7 @@ impl Vulkan {
         // window and a cross-platform Vulkan surface that represents the surface of the window.
         let event_loop = EventLoop::new();
         let surface = WindowBuilder::new()
-            .build_vk_surface(&event_loop, instance.clone())
+            .build_vk_surface(&event_loop, self.instance.as_ref().unwrap().clone())
             .unwrap();
 
         // Choose device extensions that we're going to use.
@@ -87,7 +88,7 @@ impl Vulkan {
 
         // We then choose which physical device to use. First, we enumerate all the available physical
         // devices, then apply filters to narrow them down to those that can support our needs.
-        let (physical_device, queue_family) = PhysicalDevice::enumerate(&instance)
+        let (physical_device, queue_family) = PhysicalDevice::enumerate(self.instance.as_ref().unwrap())
             .filter(|&p| {
                 // Some devices may not support the extensions or features that your application, or
                 // report properties and limits that are not sufficient for your application. These
@@ -546,5 +547,9 @@ impl Vulkan {
 
     fn get_required_extensions(&mut self) {
         self.required_extensions = Some(vulkano_win::required_extensions());
+    }
+
+    fn create_instance(&mut self) {
+        self.instance = Some(Instance::new(None, Version::V1_1, self.required_extensions.as_ref().unwrap(), None).unwrap());
     }
 }
