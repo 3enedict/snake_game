@@ -6,6 +6,7 @@ use vulkano::device::{Device, DeviceExtensions, Features};
 use vulkano::image::view::ImageView;
 use vulkano::image::{ImageUsage, SwapchainImage};
 use vulkano::instance::Instance;
+use vulkano::instance::InstanceExtensions;
 use vulkano::pipeline::viewport::Viewport;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::render_pass::{Framebuffer, FramebufferAbstract, RenderPass, Subpass};
@@ -24,7 +25,7 @@ fn window_size_dependent_setup(
     images: &[Arc<SwapchainImage<Window>>],
     render_pass: Arc<RenderPass>,
     viewport: &mut Viewport,
-) -> Vec<Arc<dyn FramebufferAbstract>> {
+    ) -> Vec<Arc<dyn FramebufferAbstract>> {
     let dimensions = images[0].dimensions();
     viewport.dimensions = [dimensions[0] as f32, dimensions[1] as f32];
 
@@ -34,32 +35,32 @@ fn window_size_dependent_setup(
             let view = ImageView::new(image.clone()).unwrap();
             Arc::new(
                 Framebuffer::start(render_pass.clone())
-                    .add(view)
-                    .unwrap()
-                    .build()
-                    .unwrap(),
-            ) as Arc<dyn FramebufferAbstract>
+                .add(view)
+                .unwrap()
+                .build()
+                .unwrap(),
+                ) as Arc<dyn FramebufferAbstract>
         })
-        .collect::<Vec<_>>()
+    .collect::<Vec<_>>()
 }
 
 pub struct Vulkan {
-
+    required_extensions: Option<InstanceExtensions>,
 }
 
 impl Vulkan {
     pub fn init() -> Self {
-        // The first step of any Vulkan program is to create an instance.
-        //
-        // When we create an instance, we have to pass a list of extensions that we want to enable.
-        //
-        // All the window-drawing functionalities are part of non-core extensions that we need
-        // to enable manually. To do so, we ask the `vulkano_win` crate for the list of extensions
-        // required to draw to a window.
-        let required_extensions = vulkano_win::required_extensions();
+
+        Self {
+            required_extensions: None,
+        }
+    }
+
+    pub fn setup(&mut self) {
+        self.get_required_extensions();
 
         // Now creating the instance.
-        let instance = Instance::new(None, Version::V1_1, &required_extensions, None).unwrap();
+        let instance = Instance::new(None, Version::V1_1, self.required_extensions.as_ref().unwrap(), None).unwrap();
 
         // The objective of this example is to draw a triangle on a window. To do so, we first need to
         // create the window.
@@ -541,8 +542,9 @@ impl Vulkan {
             }
         });
 
-        Self {
+    }
 
-        }
+    fn get_required_extensions(&mut self) {
+        self.required_extensions = Some(vulkano_win::required_extensions());
     }
 }
