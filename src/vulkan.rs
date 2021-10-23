@@ -83,9 +83,11 @@ impl Vulkan {
             self.instance.get_instance(),
             self.surface.get_surface(),
             self.physical_device.get_index(),
-            self.device.get_device(),
-            self.device.get_graphics_queue(),
-            self.device.get_present_queue(),
+            self.logical_device.get_device(),
+            self.logical_device.get_graphics_queue(),
+            self.logical_device.get_present_queue(),
+            &self.width,
+            &self.height,
             );
     }
 

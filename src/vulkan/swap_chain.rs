@@ -14,7 +14,19 @@ use vulkano::format::Format;
 use vulkano::image::{ImageUsage, swapchain::SwapchainImage};
 use vulkano::sync::SharingMode;
 
+use vulkano::instance::Instance;
+use vulkano::device::physical::PhysicalDevice;
+use vulkano::device::Device;
+use vulkano::device::Queue;
+
+
+use winit::window::Window;
+
+
 use std::sync::Arc;
+
+
+use crate::vulkan::queue_family::find_queue_families;
 
 
 pub struct VkSwapChain {
@@ -34,18 +46,20 @@ impl VkSwapChain {
         &mut self,
         instance: &Arc<Instance>,
         surface: &Arc<Surface<Window>>,
-        physical_device_index: usize,
+        physical_device_index: &usize,
         device: &Arc<Device>,
         graphics_queue: &Arc<Queue>,
         present_queue: &Arc<Queue>,
-    ) {
-        let physical_device = PhysicalDevice::from_index(&instance, physical_device_index).unwrap();
+        width: &i32,
+        height: &i32,
+        ) {
+        let physical_device = PhysicalDevice::from_index(&instance, *physical_device_index).unwrap();
         let capabilities = surface.capabilities(physical_device)
             .expect("failed to get surface capabilities");
 
         let surface_format = Self::choose_swap_surface_format(&capabilities.supported_formats);
         let present_mode = Self::choose_swap_present_mode(capabilities.present_modes);
-        let extent = Self::choose_swap_extent(&capabilities);
+        let extent = Self::choose_swap_extent(&capabilities, width, height);
 
         let mut image_count = capabilities.min_image_count + 1;
         if capabilities.max_image_count.is_some() && image_count > capabilities.max_image_count.unwrap() {
@@ -57,7 +71,7 @@ impl VkSwapChain {
             .. ImageUsage::none()
         };
 
-        let indices = Self::find_queue_families(&surface, &physical_device);
+        let indices = find_queue_families(&surface, &physical_device);
 
         let sharing: SharingMode = if indices.graphics_family != indices.present_family {
             vec![graphics_queue, present_queue].as_slice().into()
@@ -65,21 +79,40 @@ impl VkSwapChain {
             graphics_queue.into()
         };
 
-        let (swap_chain, images) = Swapchain::new(
-            device.clone(),
-            surface.clone(),
-            image_count,
-            surface_format.0,
-            extent,
-            1,
-            image_usage,
-            sharing,
-            capabilities.current_transform,
-            CompositeAlpha::Opaque,
-            present_mode,
-            true,
-            None,
-        ).expect("failed to create swap chain!");
+        /*
+           let (swap_chain, images) = Swapchain::start(
+           device.clone(),
+           surface.clone(),
+           image_count,
+           surface_format.0,
+           extent,
+           1,
+           image_usage,
+           sharing,
+           capabilities.current_transform,
+           CompositeAlpha::Opaque,
+           present_mode,
+           true,
+           None,
+           ).expect("failed to create swap chain!");
+           */
+
+        let (mut swapchain, images) = {
+            let caps = surface.capabilities(physical_device).unwrap();
+            let composite_alpha = caps.supported_composite_alpha.iter().next().unwrap();
+            let format = caps.supported_formats[0].0;
+            let dimensions: [u32; 2] = surface.window().inner_size().into();
+
+            Swapchain::start(device.clone(), surface.clone())
+                .num_images(caps.min_image_count)
+                .format(format)
+                .dimensions(dimensions)
+                .usage(ImageUsage::color_attachment())
+                .sharing_mode(&queue)
+                .composite_alpha(composite_alpha)
+                .build()
+                .unwrap()
+        };
 
         self.swap_chain = swap_chain;
         self.swap_chain_images = images;
@@ -88,8 +121,8 @@ impl VkSwapChain {
     fn choose_swap_surface_format(available_formats: &[(Format, ColorSpace)]) -> (Format, ColorSpace) {
         *available_formats.iter()
             .find(|(format, color_space)|
-                *format == Format::B8G8R8A8Unorm && *color_space == ColorSpace::SrgbNonLinear
-            )
+                  *format == Format::B8G8R8A8Unorm && *color_space == ColorSpace::SrgbNonLinear
+                 )
             .unwrap_or_else(|| &available_formats[0])
     }
 
@@ -103,11 +136,11 @@ impl VkSwapChain {
         }
     }
 
-    fn choose_swap_extent(capabilities: &Capabilities) -> [u32; 2] {
+    fn choose_swap_extent(capabilities: &Capabilities, width: &i32, height: &i32) -> [u32; 2] {
         if let Some(current_extent) = capabilities.current_extent {
             return current_extent
         } else {
-            let mut actual_extent = [WIDTH, HEIGHT];
+            let mut actual_extent = [width, height];
             actual_extent[0] = capabilities.min_image_extent[0]
                 .max(capabilities.max_image_extent[0].min(actual_extent[0]));
             actual_extent[1] = capabilities.min_image_extent[1]
