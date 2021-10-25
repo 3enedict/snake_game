@@ -11,7 +11,7 @@ use vulkano::pipeline::viewport::Viewport;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::render_pass::{Framebuffer, FramebufferAbstract, RenderPass, Subpass};
 use vulkano::swapchain;
-use vulkano::swapchain::{AcquireError, Swapchain, SwapchainCreationError};
+use vulkano::swapchain::{AcquireError, Swapchain, SwapchainCreationError, Surface};
 use vulkano::sync;
 use vulkano::sync::{FlushError, GpuFuture};
 use vulkano::Version;
@@ -20,6 +20,10 @@ use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
+
+fn print_type_of<T>(_: &T) {
+    println!("{}", std::any::type_name::<T>())
+}
 
 fn window_size_dependent_setup(
     images: &[Arc<SwapchainImage<Window>>],
@@ -49,6 +53,9 @@ pub struct Vulkan {
     instance:               Option<Arc<Instance>>,
 
     event_loop:             Option<EventLoop<()>>,
+    surface:                Option<Arc<Surface<Window>>>,
+
+    device_extensions:      Option<DeviceExtensions>,
 }
 
 impl Vulkan {
@@ -58,37 +65,20 @@ impl Vulkan {
             instance:               None,
 
             event_loop:             None,
+            surface:                None,
+
+            device_extensions:      None,
         }
     }
 
-    pub fn setup(&mut self) {
+    pub fn setup(mut self) {
         self.get_required_extensions();
-
         self.create_instance();
 
         self.create_event_loop();
+        self.create_window();
 
-        // The objective of this example is to draw a triangle on a window. To do so, we first need to
-        // create the window.
-        //
-        // This is done by creating a `WindowBuilder` from the `winit` crate, then calling the
-        // `build_vk_surface` method provided by the `VkSurfaceBuild` trait from `vulkano_win`. If you
-        // ever get an error about `build_vk_surface` being undefined in one of your projects, this
-        // probably means that you forgot to import this trait.
-        //
-        // This returns a `vulkano::swapchain::Surface` object that contains both a cross-platform winit
-        // window and a cross-platform Vulkan surface that represents the surface of the window.
-        let surface = WindowBuilder::new()
-            .build_vk_surface(self.event_loop.as_ref().unwrap(), self.instance.as_ref().unwrap().clone())
-            .unwrap();
-
-        // Choose device extensions that we're going to use.
-        // In order to present images to a surface, we need a `Swapchain`, which is provided by the
-        // `khr_swapchain` extension.
-        let device_extensions = DeviceExtensions {
-            khr_swapchain: true,
-            ..DeviceExtensions::none()
-        };
+        self.choose_device_extensions();
 
         // We then choose which physical device to use. First, we enumerate all the available physical
         // devices, then apply filters to narrow them down to those that can support our needs.
@@ -97,7 +87,7 @@ impl Vulkan {
                 // Some devices may not support the extensions or features that your application, or
                 // report properties and limits that are not sufficient for your application. These
                 // should be filtered out here.
-                p.supported_extensions().is_superset_of(&device_extensions)
+                p.supported_extensions().is_superset_of(self.device_extensions.as_ref().unwrap())
             })
         .filter_map(|p| {
             // For each physical device, we try to find a suitable queue family that will execute
@@ -117,7 +107,7 @@ impl Vulkan {
                     // We select a queue family that supports graphics operations. When drawing to
                     // a window surface, as we do in this example, we also need to check that queues
                     // in this queue family are capable of presenting images to the surface.
-                    q.supports_graphics() && surface.is_supported(q).unwrap_or(false)
+                    q.supports_graphics() && self.surface.as_ref().unwrap().is_supported(q).unwrap_or(false)
                 })
             // The code here searches for the first queue family that is suitable. If none is
             // found, `None` is returned to `filter_map`, which disqualifies this physical
@@ -176,7 +166,7 @@ impl Vulkan {
             // enable.
             &physical_device
             .required_extensions()
-            .union(&device_extensions),
+            .union(self.device_extensions.as_ref().unwrap()),
             [(queue_family, 0.5)].iter().cloned(),
             )
             .unwrap();
@@ -192,7 +182,7 @@ impl Vulkan {
         let (mut swapchain, images) = {
             // Querying the capabilities of the surface. When we create the swapchain we can only
             // pass values that are allowed by the capabilities.
-            let caps = surface.capabilities(physical_device).unwrap();
+            let caps = self.surface.as_ref().unwrap().capabilities(physical_device).unwrap();
 
             // The alpha mode indicates how the alpha value of the final image will behave. For example,
             // you can choose whether the window will be opaque or transparent.
@@ -211,10 +201,10 @@ impl Vulkan {
             // These drivers will allow anything, but the only sensible value is the window dimensions.
             //
             // Both of these cases need the swapchain to use the window dimensions, so we just use that.
-            let dimensions: [u32; 2] = surface.window().inner_size().into();
+            let dimensions: [u32; 2] = self.surface.as_ref().unwrap().window().inner_size().into();
 
             // Please take a look at the docs for the meaning of the parameters we didn't mention.
-            Swapchain::start(device.clone(), surface.clone())
+            Swapchain::start(device.clone(), self.surface.as_ref().unwrap().clone())
                 .num_images(caps.min_image_count)
                 .format(format)
                 .dimensions(dimensions)
@@ -418,7 +408,7 @@ impl Vulkan {
                     // In this example that includes the swapchain, the framebuffers and the dynamic state viewport.
                     if recreate_swapchain {
                         // Get the new dimensions of the window.
-                        let dimensions: [u32; 2] = surface.window().inner_size().into();
+                        let dimensions: [u32; 2] = self.surface.as_ref().unwrap().window().inner_size().into();
                         let (new_swapchain, new_images) =
                             match swapchain.recreate().dimensions(dimensions).build() {
                                 Ok(r) => r,
@@ -559,5 +549,18 @@ impl Vulkan {
 
     fn create_event_loop(&mut self) {
         self.event_loop = Some(EventLoop::new());
+    }
+
+    fn create_window(&mut self) {
+        self.surface = Some(WindowBuilder::new()
+            .build_vk_surface(self.event_loop.as_ref().unwrap(), self.instance.as_ref().unwrap().clone())
+            .unwrap());
+    }
+
+    fn choose_device_extensions(&mut self) {
+        self.device_extensions = Some(DeviceExtensions {
+            khr_swapchain: true,
+            ..DeviceExtensions::none()
+        });
     }
 }
