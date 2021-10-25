@@ -45,16 +45,19 @@ fn window_size_dependent_setup(
 }
 
 pub struct Vulkan {
-    required_extensions: Option<InstanceExtensions>,
-    instance: Option<Arc<Instance>>,
+    required_extensions:    Option<InstanceExtensions>,
+    instance:               Option<Arc<Instance>>,
+
+    event_loop:             Option<EventLoop<()>>,
 }
 
 impl Vulkan {
     pub fn init() -> Self {
-
         Self {
-            required_extensions: None,
-            instance: None,
+            required_extensions:    None,
+            instance:               None,
+
+            event_loop:             None,
         }
     }
 
@@ -62,6 +65,8 @@ impl Vulkan {
         self.get_required_extensions();
 
         self.create_instance();
+
+        self.create_event_loop();
 
         // The objective of this example is to draw a triangle on a window. To do so, we first need to
         // create the window.
@@ -73,9 +78,8 @@ impl Vulkan {
         //
         // This returns a `vulkano::swapchain::Surface` object that contains both a cross-platform winit
         // window and a cross-platform Vulkan surface that represents the surface of the window.
-        let event_loop = EventLoop::new();
         let surface = WindowBuilder::new()
-            .build_vk_surface(&event_loop, self.instance.as_ref().unwrap().clone())
+            .build_vk_surface(self.event_loop.as_ref().unwrap(), self.instance.as_ref().unwrap().clone())
             .unwrap();
 
         // Choose device extensions that we're going to use.
@@ -389,7 +393,7 @@ impl Vulkan {
         // that, we store the submission of the previous frame here.
         let mut previous_frame_end = Some(sync::now(device.clone()).boxed());
 
-        event_loop.run(move |event, _, control_flow| {
+        self.event_loop.take().unwrap().run(move |event, _, control_flow| {
             match event {
                 Event::WindowEvent {
                     event: WindowEvent::CloseRequested,
@@ -551,5 +555,9 @@ impl Vulkan {
 
     fn create_instance(&mut self) {
         self.instance = Some(Instance::new(None, Version::V1_1, self.required_extensions.as_ref().unwrap(), None).unwrap());
+    }
+
+    fn create_event_loop(&mut self) {
+        self.event_loop = Some(EventLoop::new());
     }
 }
