@@ -2,7 +2,7 @@ use std::sync::Arc;
 use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer, TypedBufferAccess};
 use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, SubpassContents};
 use vulkano::device::physical::{PhysicalDevice, PhysicalDeviceType, QueueFamily};
-use vulkano::device::{Device, DeviceExtensions, Features};
+use vulkano::device::{Device, DeviceExtensions, Features, Queue};
 use vulkano::image::view::ImageView;
 use vulkano::image::{ImageUsage, SwapchainImage};
 use vulkano::instance::Instance;
@@ -57,7 +57,10 @@ pub struct Vulkan {
 
     device_extensions:      Option<DeviceExtensions>,
     physical_device_index:  Option<usize>,
-    queue_family_id:        Option<u32>
+    queue_family_id:        Option<u32>,
+
+    logical_device:         Option<Arc<Device>>,
+    queue:                  Option<Arc<Queue>>,
 }
 
 impl Vulkan {
@@ -73,9 +76,8 @@ impl Vulkan {
             physical_device_index:  None,
             queue_family_id:        None,
 
-
-//            physical_device:        None,
-//            queue_family:           None,
+            logical_device:         None,
+            queue:                  None,
         }
     }
 
@@ -88,69 +90,9 @@ impl Vulkan {
 
         self.choose_device_extensions();
         self.create_physical_device();
+        println!("Using device: {} (type: {:?})", self.get_physical_device().properties().device_name, self.get_physical_device().properties().device_type);
 
-
-        // We then choose which physical device to use. First, we enumerate all the available physical
-        // devices, then apply filters to narrow them down to those that can support our needs.
-
-        // Some little debug infos.
-    println!(
-        "Using device: {} (type: {:?})",
-        self.get_physical_device().properties().device_name,
-        self.get_physical_device().properties().device_type,
-        );
-
-        // Now initializing the device. This is probably the most important object of Vulkan.
-        //
-        // We have to pass four parameters when creating a device:
-        //
-        // - Which physical device to connect to.
-        //
-        // - A list of optional features and extensions that our program needs to work correctly.
-        //   Some parts of the Vulkan specs are optional and must be enabled manually at device
-        //   creation. In this example the only thing we are going to need is the `khr_swapchain`
-        //   extension that allows us to draw to a window.
-        //
-        // - The list of queues that we are going to use. The exact parameter is an iterator whose
-        //   items are `(Queue, f32)` where the floating-point represents the priority of the queue
-        //   between 0.0 and 1.0. The priority of the queue is a hint to the implementation about how
-        //   much it should prioritize queues between one another.
-        //
-        // The iterator of created queues is returned by the function alongside the device.
-        //
-        /*
-        let (device, mut queues) = Device::new(
-            self.physical_device.unwrap(),
-            &Features::none(),
-            // Some devices require certain extensions to be enabled if they are present
-            // (e.g. `khr_portability_subset`). We add them to the device extensions that we're going to
-            // enable.
-            &self.physical_device.as_ref().unwrap()
-            .required_extensions()
-            .union(self.device_extensions.as_ref().unwrap()),
-            [(queue_family, 0.5)].iter().cloned(),
-            )
-            .unwrap();
-            */
-        //
-        
-        let (device, mut queues) = Device::new(
-            self.get_physical_device(),
-            &Features::none(),
-            // Some devices require certain extensions to be enabled if they are present
-            // (e.g. `khr_portability_subset`). We add them to the device extensions that we're going to
-            // enable.
-            &self.get_physical_device()
-            .required_extensions()
-            .union(self.device_extensions.as_ref().unwrap()),
-            [(self.get_queue_family(), 0.5)].iter().cloned(),
-            )
-            .unwrap();
-
-        // Since we can request multiple queues, the `queues` variable is in fact an iterator. We
-        // only use one queue in this example, so we just retrieve the first and only element of the
-        // iterator.
-        let queue = queues.next().unwrap();
+        self.create_logical_device();
 
         // Before we can draw on the surface, we have to create what is called a swapchain. Creating
         // a swapchain allocates the color buffers that will contain the image that will ultimately
@@ -158,14 +100,14 @@ impl Vulkan {
         let (mut swapchain, images) = {
             // Querying the capabilities of the surface. When we create the swapchain we can only
             // pass values that are allowed by the capabilities.
-//            let caps = self.surface.as_ref().unwrap().capabilities((self.physical_device.unwrap()).unwrap();
-        let caps = self.surface.as_ref().unwrap().capabilities(self.get_physical_device()).unwrap();
+            //            let caps = self.surface.as_ref().unwrap().capabilities((self.physical_device.unwrap()).unwrap();
+            let caps = self.surface.as_ref().unwrap().capabilities(self.get_physical_device()).unwrap();
 
-        // The alpha mode indicates how the alpha value of the final image will behave. For example,
-        // you can choose whether the window will be opaque or transparent.
-        let composite_alpha = caps.supported_composite_alpha.iter().next().unwrap();
+            // The alpha mode indicates how the alpha value of the final image will behave. For example,
+            // you can choose whether the window will be opaque or transparent.
+            let composite_alpha = caps.supported_composite_alpha.iter().next().unwrap();
 
-        // Choosing the internal format that the images will have.
+            // Choosing the internal format that the images will have.
 
             // Choosing the internal format that the images will have.
             let format = caps.supported_formats[0].0;
@@ -183,12 +125,12 @@ impl Vulkan {
             let dimensions: [u32; 2] = self.surface.as_ref().unwrap().window().inner_size().into();
 
             // Please take a look at the docs for the meaning of the parameters we didn't mention.
-            Swapchain::start(device.clone(), self.surface.as_ref().unwrap().clone())
+            Swapchain::start(self.logical_device.as_ref().unwrap().clone(), self.surface.as_ref().unwrap().clone())
                 .num_images(caps.min_image_count)
                 .format(format)
                 .dimensions(dimensions)
                 .usage(ImageUsage::color_attachment())
-                .sharing_mode(&queue)
+                .sharing_mode(self.queue.as_ref().unwrap())
                 .composite_alpha(composite_alpha)
                 .build()
                 .unwrap()
@@ -202,7 +144,7 @@ impl Vulkan {
         vulkano::impl_vertex!(Vertex, position);
 
         let vertex_buffer = CpuAccessibleBuffer::from_iter(
-            device.clone(),
+            self.logical_device.as_ref().unwrap().clone(),
             BufferUsage::all(),
             false,
             [
@@ -259,8 +201,8 @@ impl Vulkan {
             }
         }
 
-        let vs = vs::Shader::load(device.clone()).unwrap();
-        let fs = fs::Shader::load(device.clone()).unwrap();
+        let vs = vs::Shader::load(self.logical_device.as_ref().unwrap().clone()).unwrap();
+        let fs = fs::Shader::load(self.logical_device.as_ref().unwrap().clone()).unwrap();
 
         // At this point, OpenGL initialization would be finished. However in Vulkan it is not. OpenGL
         // implicitly does a lot of computation whenever you draw. In Vulkan, you have to do all this
@@ -271,7 +213,7 @@ impl Vulkan {
         // where the colors, depth and/or stencil information will be written.
         let render_pass = Arc::new(
             vulkano::single_pass_renderpass!(
-                device.clone(),
+                self.logical_device.as_ref().unwrap().clone(),
                 attachments: {
                     // `color` is a custom name we give to the first and only attachment.
                     color: {
@@ -322,7 +264,7 @@ impl Vulkan {
             // in. The pipeline will only be usable from this particular subpass.
             .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
             // Now that our builder is filled, we call `build()` to obtain an actual pipeline.
-            .build(device.clone())
+            .build(self.logical_device.as_ref().unwrap().clone())
             .unwrap(),
             );
 
@@ -360,7 +302,7 @@ impl Vulkan {
         //
         // Destroying the `GpuFuture` blocks until the GPU is finished executing it. In order to avoid
         // that, we store the submission of the previous frame here.
-        let mut previous_frame_end = Some(sync::now(device.clone()).boxed());
+        let mut previous_frame_end = Some(sync::now(self.logical_device.as_ref().unwrap().clone()).boxed());
 
         self.event_loop.take().unwrap().run(move |event, _, control_flow| {
             match event {
@@ -445,8 +387,8 @@ impl Vulkan {
                     // Note that we have to pass a queue family when we create the command buffer. The command
                     // buffer will only be executable on that given queue family.
                     let mut builder = AutoCommandBufferBuilder::primary(
-                        device.clone(),
-                        queue.family(),
+                        self.logical_device.as_ref().unwrap().clone(),
+                        self.queue.as_ref().unwrap().family(),
                         CommandBufferUsage::OneTimeSubmit,
                         )
                         .unwrap();
@@ -487,7 +429,7 @@ impl Vulkan {
                         .take()
                         .unwrap()
                         .join(acquire_future)
-                        .then_execute(queue.clone(), command_buffer)
+                        .then_execute(self.queue.as_ref().unwrap().clone(), command_buffer)
                         .unwrap()
                         // The color output is now expected to contain our triangle. But in order to show it on
                         // the screen, we have to *present* the image by calling `present`.
@@ -495,7 +437,7 @@ impl Vulkan {
                         // This function does not actually present the image immediately. Instead it submits a
                         // present command at the end of the queue. This means that it will only be presented once
                         // the GPU has finished executing the command buffer that draws the triangle.
-                        .then_swapchain_present(queue.clone(), swapchain.clone(), image_num)
+                        .then_swapchain_present(self.queue.as_ref().unwrap().clone(), swapchain.clone(), image_num)
                         .then_signal_fence_and_flush();
 
                     match future {
@@ -504,11 +446,11 @@ impl Vulkan {
                         }
                         Err(FlushError::OutOfDate) => {
                             recreate_swapchain = true;
-                            previous_frame_end = Some(sync::now(device.clone()).boxed());
+                            previous_frame_end = Some(sync::now(self.logical_device.as_ref().unwrap().clone()).boxed());
                         }
                         Err(e) => {
                             println!("Failed to flush future: {:?}", e);
-                            previous_frame_end = Some(sync::now(device.clone()).boxed());
+                            previous_frame_end = Some(sync::now(self.logical_device.as_ref().unwrap().clone()).boxed());
                         }
                     }
                 }
@@ -573,5 +515,20 @@ impl Vulkan {
 
     fn get_queue_family(&self) -> QueueFamily {
         self.get_physical_device().queue_family_by_id(self.queue_family_id.unwrap()).unwrap()
+    }
+
+    fn create_logical_device(&mut self) {
+        let (device, mut queues) = Device::new(
+            self.get_physical_device(),
+            &Features::none(),
+            &self.get_physical_device()
+            .required_extensions()
+            .union(self.device_extensions.as_ref().unwrap()),
+            [(self.get_queue_family(), 0.5)].iter().cloned(),
+            )
+            .unwrap();
+
+        self.logical_device = Some(device);
+        self.queue = queues.next();
     }
 }
