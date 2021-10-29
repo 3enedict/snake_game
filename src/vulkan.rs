@@ -61,6 +61,9 @@ pub struct Vulkan {
 
     logical_device:         Option<Arc<Device>>,
     queue:                  Option<Arc<Queue>>,
+
+    swapchain:              Option<Arc<Swapchain<Window>>>,
+    images:                 Option<Vec<Arc<SwapchainImage<Window>>>>,
 }
 
 impl Vulkan {
@@ -78,6 +81,9 @@ impl Vulkan {
 
             logical_device:         None,
             queue:                  None,
+
+            swapchain:              None,
+            images:                 None,
         }
     }
 
@@ -93,48 +99,13 @@ impl Vulkan {
         println!("Using device: {} (type: {:?})", self.get_physical_device().properties().device_name, self.get_physical_device().properties().device_type);
 
         self.create_logical_device();
+        self.create_swapchain();
 
         // Before we can draw on the surface, we have to create what is called a swapchain. Creating
         // a swapchain allocates the color buffers that will contain the image that will ultimately
         // be visible on the screen. These images are returned alongside the swapchain.
-        let (mut swapchain, images) = {
-            // Querying the capabilities of the surface. When we create the swapchain we can only
-            // pass values that are allowed by the capabilities.
-            //            let caps = self.surface.as_ref().unwrap().capabilities((self.physical_device.unwrap()).unwrap();
-            let caps = self.surface.as_ref().unwrap().capabilities(self.get_physical_device()).unwrap();
 
-            // The alpha mode indicates how the alpha value of the final image will behave. For example,
-            // you can choose whether the window will be opaque or transparent.
-            let composite_alpha = caps.supported_composite_alpha.iter().next().unwrap();
 
-            // Choosing the internal format that the images will have.
-
-            // Choosing the internal format that the images will have.
-            let format = caps.supported_formats[0].0;
-
-            // The dimensions of the window, only used to initially setup the swapchain.
-            // NOTE:
-            // On some drivers the swapchain dimensions are specified by `caps.current_extent` and the
-            // swapchain size must use these dimensions.
-            // These dimensions are always the same as the window dimensions.
-            //
-            // However, other drivers don't specify a value, i.e. `caps.current_extent` is `None`
-            // These drivers will allow anything, but the only sensible value is the window dimensions.
-            //
-            // Both of these cases need the swapchain to use the window dimensions, so we just use that.
-            let dimensions: [u32; 2] = self.surface.as_ref().unwrap().window().inner_size().into();
-
-            // Please take a look at the docs for the meaning of the parameters we didn't mention.
-            Swapchain::start(self.logical_device.as_ref().unwrap().clone(), self.surface.as_ref().unwrap().clone())
-                .num_images(caps.min_image_count)
-                .format(format)
-                .dimensions(dimensions)
-                .usage(ImageUsage::color_attachment())
-                .sharing_mode(self.queue.as_ref().unwrap())
-                .composite_alpha(composite_alpha)
-                .build()
-                .unwrap()
-        };
 
         // We now create a buffer that will store the shape of our triangle.
         #[derive(Default, Debug, Clone)]
@@ -227,7 +198,7 @@ impl Vulkan {
                         // be one of the types of the `vulkano::format` module (or alternatively one
                         // of your structs that implements the `FormatDesc` trait). Here we use the
                         // same format as the swapchain.
-                        format: swapchain.format(),
+                        format: self.swapchain.as_ref().unwrap().format(),
                         // TODO:
                         samples: 1,
                     }
@@ -281,7 +252,7 @@ impl Vulkan {
         //
         // Since we need to draw to multiple images, we are going to create a different framebuffer for
         // each image.
-        let mut framebuffers = window_size_dependent_setup(&images, render_pass.clone(), &mut viewport);
+        let mut framebuffers = window_size_dependent_setup(self.images.as_ref().unwrap(), render_pass.clone(), &mut viewport);
 
         // Initialization is finally finished!
 
@@ -331,7 +302,7 @@ impl Vulkan {
                         // Get the new dimensions of the window.
                         let dimensions: [u32; 2] = self.surface.as_ref().unwrap().window().inner_size().into();
                         let (new_swapchain, new_images) =
-                            match swapchain.recreate().dimensions(dimensions).build() {
+                            match self.swapchain.as_ref().unwrap().recreate().dimensions(dimensions).build() {
                                 Ok(r) => r,
                                 // This error tends to happen when the user is manually resizing the window.
                                 // Simply restarting the loop is the easiest way to fix this issue.
@@ -339,7 +310,7 @@ impl Vulkan {
                                 Err(e) => panic!("Failed to recreate swapchain: {:?}", e),
                             };
 
-                        swapchain = new_swapchain;
+                        self.swapchain = Some(new_swapchain);
                         // Because framebuffers contains an Arc on the old swapchain, we need to
                         // recreate framebuffers as well.
                         framebuffers = window_size_dependent_setup(
@@ -358,7 +329,7 @@ impl Vulkan {
                     // This function can block if no image is available. The parameter is an optional timeout
                     // after which the function call will return an error.
                     let (image_num, suboptimal, acquire_future) =
-                        match swapchain::acquire_next_image(swapchain.clone(), None) {
+                        match swapchain::acquire_next_image(self.swapchain.as_ref().unwrap().clone(), None) {
                             Ok(r) => r,
                             Err(AcquireError::OutOfDate) => {
                                 recreate_swapchain = true;
@@ -437,7 +408,7 @@ impl Vulkan {
                         // This function does not actually present the image immediately. Instead it submits a
                         // present command at the end of the queue. This means that it will only be presented once
                         // the GPU has finished executing the command buffer that draws the triangle.
-                        .then_swapchain_present(self.queue.as_ref().unwrap().clone(), swapchain.clone(), image_num)
+                        .then_swapchain_present(self.queue.as_ref().unwrap().clone(), self.swapchain.as_ref().unwrap().clone(), image_num)
                         .then_signal_fence_and_flush();
 
                     match future {
@@ -530,5 +501,27 @@ impl Vulkan {
 
         self.logical_device = Some(device);
         self.queue = queues.next();
+    }
+
+    fn create_swapchain(&mut self) {
+        let (swapchain, images) = {
+            let caps = self.surface.as_ref().unwrap().capabilities(self.get_physical_device()).unwrap();
+            let composite_alpha = caps.supported_composite_alpha.iter().next().unwrap();
+            let format = caps.supported_formats[0].0;
+            let dimensions: [u32; 2] = self.surface.as_ref().unwrap().window().inner_size().into();
+
+            Swapchain::start(self.logical_device.as_ref().unwrap().clone(), self.surface.as_ref().unwrap().clone())
+                .num_images(caps.min_image_count)
+                .format(format)
+                .dimensions(dimensions)
+                .usage(ImageUsage::color_attachment())
+                .sharing_mode(self.queue.as_ref().unwrap())
+                .composite_alpha(composite_alpha)
+                .build()
+                .unwrap()
+        };
+
+        self.swapchain = Some(swapchain);
+        self.images = Some(images);
     }
 }
