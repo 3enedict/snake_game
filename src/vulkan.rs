@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer, TypedBufferAccess};
 use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, SubpassContents};
-use vulkano::device::physical::{PhysicalDevice, PhysicalDeviceType};
+use vulkano::device::physical::{PhysicalDevice, PhysicalDeviceType, QueueFamily};
 use vulkano::device::{Device, DeviceExtensions, Features};
 use vulkano::image::view::ImageView;
 use vulkano::image::{ImageUsage, SwapchainImage};
@@ -56,6 +56,8 @@ pub struct Vulkan {
     surface:                Option<Arc<Surface<Window>>>,
 
     device_extensions:      Option<DeviceExtensions>,
+    physical_device_index:  Option<usize>,
+    queue_family_id:        Option<u32>
 }
 
 impl Vulkan {
@@ -68,6 +70,12 @@ impl Vulkan {
             surface:                None,
 
             device_extensions:      None,
+            physical_device_index:  None,
+            queue_family_id:        None,
+
+
+//            physical_device:        None,
+//            queue_family:           None,
         }
     }
 
@@ -79,67 +87,18 @@ impl Vulkan {
         self.create_window();
 
         self.choose_device_extensions();
+        self.create_physical_device();
+
 
         // We then choose which physical device to use. First, we enumerate all the available physical
         // devices, then apply filters to narrow them down to those that can support our needs.
-        let (physical_device, queue_family) = PhysicalDevice::enumerate(self.instance.as_ref().unwrap())
-            .filter(|&p| {
-                // Some devices may not support the extensions or features that your application, or
-                // report properties and limits that are not sufficient for your application. These
-                // should be filtered out here.
-                p.supported_extensions().is_superset_of(self.device_extensions.as_ref().unwrap())
-            })
-        .filter_map(|p| {
-            // For each physical device, we try to find a suitable queue family that will execute
-            // our draw commands.
-            //
-            // Devices can provide multiple queues to run commands in parallel (for example a draw
-            // queue and a compute queue), similar to CPU threads. This is something you have to
-            // have to manage manually in Vulkan. Queues of the same type belong to the same
-            // queue family.
-            //
-            // Here, we look for a single queue family that is suitable for our purposes. In a
-            // real-life application, you may want to use a separate dedicated transfer queue to
-            // handle data transfers in parallel with graphics operations. You may also need a
-            // separate queue for compute operations, if your application uses those.
-            p.queue_families()
-                .find(|&q| {
-                    // We select a queue family that supports graphics operations. When drawing to
-                    // a window surface, as we do in this example, we also need to check that queues
-                    // in this queue family are capable of presenting images to the surface.
-                    q.supports_graphics() && self.surface.as_ref().unwrap().is_supported(q).unwrap_or(false)
-                })
-            // The code here searches for the first queue family that is suitable. If none is
-            // found, `None` is returned to `filter_map`, which disqualifies this physical
-            // device.
-            .map(|q| (p, q))
-        })
-        // All the physical devices that pass the filters above are suitable for the application.
-        // However, not every device is equal, some are preferred over others. Now, we assign
-        // each physical device a score, and pick the device with the
-        // lowest ("best") score.
-        //
-        // In this example, we simply select the best-scoring device to use in the application.
-        // In a real-life setting, you may want to use the best-scoring device only as a
-        // "default" or "recommended" device, and let the user choose the device themselves.
-        .min_by_key(|(p, _)| {
-            // We assign a better score to device types that are likely to be faster/better.
-            match p.properties().device_type {
-                PhysicalDeviceType::DiscreteGpu => 0,
-                PhysicalDeviceType::IntegratedGpu => 1,
-                PhysicalDeviceType::VirtualGpu => 2,
-                PhysicalDeviceType::Cpu => 3,
-                PhysicalDeviceType::Other => 4,
-            }
-        })
-        .unwrap();
 
         // Some little debug infos.
-        println!(
-            "Using device: {} (type: {:?})",
-            physical_device.properties().device_name,
-            physical_device.properties().device_type,
-            );
+    println!(
+        "Using device: {} (type: {:?})",
+        self.get_physical_device().properties().device_name,
+        self.get_physical_device().properties().device_type,
+        );
 
         // Now initializing the device. This is probably the most important object of Vulkan.
         //
@@ -158,16 +117,33 @@ impl Vulkan {
         //   much it should prioritize queues between one another.
         //
         // The iterator of created queues is returned by the function alongside the device.
+        //
+        /*
         let (device, mut queues) = Device::new(
-            physical_device,
+            self.physical_device.unwrap(),
             &Features::none(),
             // Some devices require certain extensions to be enabled if they are present
             // (e.g. `khr_portability_subset`). We add them to the device extensions that we're going to
             // enable.
-            &physical_device
+            &self.physical_device.as_ref().unwrap()
             .required_extensions()
             .union(self.device_extensions.as_ref().unwrap()),
             [(queue_family, 0.5)].iter().cloned(),
+            )
+            .unwrap();
+            */
+        //
+        
+        let (device, mut queues) = Device::new(
+            self.get_physical_device(),
+            &Features::none(),
+            // Some devices require certain extensions to be enabled if they are present
+            // (e.g. `khr_portability_subset`). We add them to the device extensions that we're going to
+            // enable.
+            &self.get_physical_device()
+            .required_extensions()
+            .union(self.device_extensions.as_ref().unwrap()),
+            [(self.get_queue_family(), 0.5)].iter().cloned(),
             )
             .unwrap();
 
@@ -182,11 +158,14 @@ impl Vulkan {
         let (mut swapchain, images) = {
             // Querying the capabilities of the surface. When we create the swapchain we can only
             // pass values that are allowed by the capabilities.
-            let caps = self.surface.as_ref().unwrap().capabilities(physical_device).unwrap();
+//            let caps = self.surface.as_ref().unwrap().capabilities((self.physical_device.unwrap()).unwrap();
+        let caps = self.surface.as_ref().unwrap().capabilities(self.get_physical_device()).unwrap();
 
-            // The alpha mode indicates how the alpha value of the final image will behave. For example,
-            // you can choose whether the window will be opaque or transparent.
-            let composite_alpha = caps.supported_composite_alpha.iter().next().unwrap();
+        // The alpha mode indicates how the alpha value of the final image will behave. For example,
+        // you can choose whether the window will be opaque or transparent.
+        let composite_alpha = caps.supported_composite_alpha.iter().next().unwrap();
+
+        // Choosing the internal format that the images will have.
 
             // Choosing the internal format that the images will have.
             let format = caps.supported_formats[0].0;
@@ -273,9 +252,9 @@ impl Vulkan {
 
                 layout(location = 0) out vec4 f_color;
 
-            void main() {
-                f_color = vec4(1.0, 0.0, 0.0, 1.0);
-            }
+                void main() {
+                    f_color = vec4(1.0, 0.0, 0.0, 1.0);
+                }
             "
             }
         }
@@ -553,8 +532,8 @@ impl Vulkan {
 
     fn create_window(&mut self) {
         self.surface = Some(WindowBuilder::new()
-            .build_vk_surface(self.event_loop.as_ref().unwrap(), self.instance.as_ref().unwrap().clone())
-            .unwrap());
+                            .build_vk_surface(self.event_loop.as_ref().unwrap(), self.instance.as_ref().unwrap().clone())
+                            .unwrap());
     }
 
     fn choose_device_extensions(&mut self) {
@@ -562,5 +541,37 @@ impl Vulkan {
             khr_swapchain: true,
             ..DeviceExtensions::none()
         });
+    }
+
+    fn create_physical_device(&mut self) {
+        let (physical_device, queue_family) = PhysicalDevice::enumerate(self.instance.as_ref().unwrap())
+            .filter(|&p| {
+                p.supported_extensions().is_superset_of(self.device_extensions.as_ref().unwrap())
+            }).filter_map(|p| {
+                p.queue_families()
+                    .find(|&q| {
+                        q.supports_graphics() && self.surface.as_ref().unwrap().is_supported(q).unwrap_or(false)
+                    })
+                .map(|q| (p, q))
+            }).min_by_key(|(p, _)| {
+                match p.properties().device_type {
+                    PhysicalDeviceType::DiscreteGpu => 0,
+                    PhysicalDeviceType::IntegratedGpu => 1,
+                    PhysicalDeviceType::VirtualGpu => 2,
+                    PhysicalDeviceType::Cpu => 3,
+                    PhysicalDeviceType::Other => 4,
+                }
+            }).unwrap();
+
+        self.physical_device_index = Some(physical_device.index());
+        self.queue_family_id = Some(queue_family.id());
+    }
+
+    fn get_physical_device(&self) -> PhysicalDevice {
+        PhysicalDevice::from_index(self.instance.as_ref().unwrap(), self.physical_device_index.unwrap()).unwrap()
+    }
+
+    fn get_queue_family(&self) -> QueueFamily {
+        self.get_physical_device().queue_family_by_id(self.queue_family_id.unwrap()).unwrap()
     }
 }
