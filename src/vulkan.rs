@@ -101,12 +101,6 @@ impl Vulkan {
         self.create_logical_device();
         self.create_swapchain();
 
-        // Before we can draw on the surface, we have to create what is called a swapchain. Creating
-        // a swapchain allocates the color buffers that will contain the image that will ultimately
-        // be visible on the screen. These images are returned alongside the swapchain.
-
-
-
         // We now create a buffer that will store the shape of our triangle.
         #[derive(Default, Debug, Clone)]
         struct Vertex {
@@ -120,13 +114,13 @@ impl Vulkan {
             false,
             [
             Vertex {
-                position: [-0.5, -0.25],
+                position: [-0.5, -0.5],
             },
             Vertex {
-                position: [0.0, 0.5],
+                position: [-0.5, 0.5],
             },
             Vertex {
-                position: [0.25, -0.1],
+                position: [0, 0.4],
             },
             ]
             .iter()
