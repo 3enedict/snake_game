@@ -82,6 +82,8 @@ pub struct Vulkan {
     vertex_buffer:          Option<Arc<CpuAccessibleBuffer<[Vertex]>>>,
     vs:                     Option<VertexShader>,
     fs:                     Option<FragmentShader>,
+
+    render_pass:            Option<Arc<RenderPass>>,
 }
 
 impl Vulkan {
@@ -106,6 +108,8 @@ impl Vulkan {
             vertex_buffer:          None,
             vs:                     None,
             fs:                     None,
+
+            render_pass:            None,
         }
     }
 
@@ -127,43 +131,7 @@ impl Vulkan {
         self.create_vertex_buffer();
         self.create_shaders();
 
-        // At this point, OpenGL initialization would be finished. However in Vulkan it is not. OpenGL
-        // implicitly does a lot of computation whenever you draw. In Vulkan, you have to do all this
-        // manually.
-
-        // The next step is to create a *render pass*, which is an object that describes where the
-        // output of the graphics pipeline will go. It describes the layout of the images
-        // where the colors, depth and/or stencil information will be written.
-        let render_pass = Arc::new(
-            vulkano::single_pass_renderpass!(
-                self.logical_device.as_ref().unwrap().clone(),
-                attachments: {
-                    // `color` is a custom name we give to the first and only attachment.
-                    color: {
-                        // `load: Clear` means that we ask the GPU to clear the content of this
-                        // attachment at the start of the drawing.
-                        load: Clear,
-                        // `store: Store` means that we ask the GPU to store the output of the draw
-                        // in the actual image. We could also ask it to discard the result.
-                        store: Store,
-                        // `format: <ty>` indicates the type of the format of the image. This has to
-                        // be one of the types of the `vulkano::format` module (or alternatively one
-                        // of your structs that implements the `FormatDesc` trait). Here we use the
-                        // same format as the swapchain.
-                        format: self.swapchain.as_ref().unwrap().format(),
-                        // TODO:
-                        samples: 1,
-                    }
-                },
-                pass: {
-                    // We use the attachment named `color` as the one and only color attachment.
-                    color: [color],
-                    // No depth-stencil attachment is indicated with empty brackets.
-                    depth_stencil: {}
-                }
-        )
-            .unwrap(),
-            );
+        self.create_render_pass();
 
         // Before we draw we have to create what is called a pipeline. This is similar to an OpenGL
         // program, but much more specific.
@@ -185,7 +153,7 @@ impl Vulkan {
             .fragment_shader(self.fs.as_ref().unwrap().main_entry_point(), ())
             // We have to indicate which subpass of which render pass this pipeline is going to be used
             // in. The pipeline will only be usable from this particular subpass.
-            .render_pass(Subpass::from(render_pass.clone(), 0).unwrap())
+            .render_pass(Subpass::from(self.render_pass.as_ref().unwrap().clone(), 0).unwrap())
             // Now that our builder is filled, we call `build()` to obtain an actual pipeline.
             .build(self.logical_device.as_ref().unwrap().clone())
             .unwrap(),
@@ -204,7 +172,7 @@ impl Vulkan {
         //
         // Since we need to draw to multiple images, we are going to create a different framebuffer for
         // each image.
-        let mut framebuffers = window_size_dependent_setup(self.images.as_ref().unwrap(), render_pass.clone(), &mut viewport);
+        let mut framebuffers = window_size_dependent_setup(self.images.as_ref().unwrap(), self.render_pass.as_ref().unwrap().clone(), &mut viewport);
 
         // Initialization is finally finished!
 
@@ -267,7 +235,7 @@ impl Vulkan {
                         // recreate framebuffers as well.
                         framebuffers = window_size_dependent_setup(
                             &new_images,
-                            render_pass.clone(),
+                            self.render_pass.as_ref().unwrap().clone(),
                             &mut viewport,
                             );
                         recreate_swapchain = false;
@@ -502,5 +470,26 @@ impl Vulkan {
     fn create_shaders(&mut self) {
         self.vs = Some(vs::Shader::load(self.logical_device.as_ref().unwrap().clone()).unwrap());
         self.fs = Some(fs::Shader::load(self.logical_device.as_ref().unwrap().clone()).unwrap());
+    }
+
+    fn create_render_pass(&mut self) {
+        self.render_pass = Some(Arc::new(
+            vulkano::single_pass_renderpass!(
+                self.logical_device.as_ref().unwrap().clone(),
+                attachments: {
+                    color: {
+                        load: Clear,
+                        store: Store,
+                        format: self.swapchain.as_ref().unwrap().format(),
+                        samples: 1,
+                    }
+                },
+                pass: {
+                    color: [color],
+                    depth_stencil: {}
+                }
+        )
+            .unwrap(),
+            ));
     }
 }
