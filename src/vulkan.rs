@@ -217,6 +217,7 @@ impl Vulkan {
 
                     builder
                         // Before we can draw, we have to *enter a render pass*. There are two methods to do
+                        //
                         // this: `draw_inline` and `draw_secondary`. The latter is a bit more advanced and is
                         // not covered here.
                         //
