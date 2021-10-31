@@ -120,7 +120,7 @@ impl Vulkan {
         }
     }
 
-    pub fn setup(mut self) {
+    pub fn setup(&mut self, callback: &mut dyn FnMut(&mut Vulkan)) {
         self.get_required_extensions();
         self.create_instance();
 
@@ -148,6 +148,10 @@ impl Vulkan {
 
         self.previous_frame_end = Some(sync::now(self.logical_device.as_ref().unwrap().clone()).boxed());
 
+        callback(self);
+    }
+
+    pub fn run(mut self) {
         self.event_loop.take().unwrap().run(move |event, _, control_flow| {
             match event {
                 Event::WindowEvent {
@@ -178,7 +182,6 @@ impl Vulkan {
                 _ => (),
             }
         });
-
     }
 
     fn get_required_extensions(&mut self) {
@@ -195,8 +198,8 @@ impl Vulkan {
 
     fn create_window(&mut self) {
         self.surface = Some(WindowBuilder::new()
-                            .build_vk_surface(self.event_loop.as_ref().unwrap(), self.instance.as_ref().unwrap().clone())
-                            .unwrap());
+            .build_vk_surface(self.event_loop.as_ref().unwrap(), self.instance.as_ref().unwrap().clone())
+            .unwrap());
     }
 
     fn choose_device_extensions(&mut self) {
@@ -246,7 +249,7 @@ impl Vulkan {
             .required_extensions()
             .union(self.device_extensions.as_ref().unwrap()),
             [(self.get_queue_family(), 0.5)].iter().cloned(),
-            )
+        )
             .unwrap();
 
         self.logical_device = Some(device);
@@ -293,7 +296,7 @@ impl Vulkan {
                 ]
                 .iter()
                 .cloned(),
-                )
+        )
             .unwrap());
     }
 
@@ -318,9 +321,9 @@ impl Vulkan {
                         color: [color],
                         depth_stencil: {}
                     }
-                    )
+                )
                 .unwrap(),
-                ));
+        ));
     }
 
     fn create_pipeline(&mut self) {
@@ -334,7 +337,7 @@ impl Vulkan {
                 .render_pass(Subpass::from(self.render_pass.as_ref().unwrap().clone(), 0).unwrap())
                 .build(self.logical_device.as_ref().unwrap().clone())
                 .unwrap(),
-                ));
+        ));
     }
 
     fn create_viewport(&mut self) {
@@ -364,7 +367,7 @@ impl Vulkan {
                     .unwrap()
                     .build()
                     .unwrap(),
-                    ) as Arc<dyn FramebufferAbstract>
+                ) as Arc<dyn FramebufferAbstract>
             })
         .collect::<Vec<_>>()
     }
@@ -414,13 +417,13 @@ impl Vulkan {
             self.logical_device.as_ref().unwrap().clone(),
             self.queue.as_ref().unwrap().family(),
             CommandBufferUsage::OneTimeSubmit,
-            ).unwrap();
+        ).unwrap();
 
         builder.begin_render_pass(
             self.framebuffers.as_ref().unwrap()[self.image_id.unwrap()].clone(),
             SubpassContents::Inline,
             clear_values,
-            ).unwrap()
+        ).unwrap()
             .set_viewport(0, [self.viewport.as_ref().unwrap().clone()])
             .bind_pipeline_graphics(self.pipeline.as_ref().unwrap().clone())
             .bind_vertex_buffers(0, self.vertex_buffer.as_ref().unwrap().clone())
