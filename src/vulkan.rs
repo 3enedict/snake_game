@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer, TypedBufferAccess};
-use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, SubpassContents};
+use vulkano::command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, SubpassContents, PrimaryAutoCommandBuffer};
 use vulkano::device::physical::{PhysicalDevice, PhysicalDeviceType, QueueFamily};
 use vulkano::device::{Device, DeviceExtensions, Features, Queue};
 use vulkano::image::view::ImageView;
@@ -74,6 +74,8 @@ pub struct Vulkan {
 
     image_id:               Option<usize>,
     acquire_future:         Option<SwapchainAcquireFuture<Window>>,
+
+    command_buffer:         Option<PrimaryAutoCommandBuffer>,
 } 
 
 impl Vulkan {
@@ -113,6 +115,8 @@ impl Vulkan {
 
             image_id:               None,
             acquire_future:         None,
+
+            command_buffer:         None,
         }
     }
 
@@ -161,69 +165,19 @@ impl Vulkan {
                 Event::RedrawEventsCleared => {
                     self.previous_frame_end.as_mut().unwrap().cleanup_finished();
 
-                    if self.recreate_swapchain {
+                    if self.recreate_swapchain == true {
                         self.recreate_swapchain();
                     }
 
                     self.acquire_image();
 
-                    // Specify the color to clear the framebuffer with i.e. blue
-                    let clear_values = vec![[0.1, 0.1, 0.1, 1.0].into()];
-
-                    // In order to draw, we have to build a *command buffer*. The command buffer object holds
-                    // the list of commands that are going to be executed.
-                    //
-                    // Building a command buffer is an expensive operation (usually a few hundred
-                    // microseconds), but it is known to be a hot path in the driver and is expected to be
-                    // optimized.
-                    //
-                    // Note that we have to pass a queue family when we create the command buffer. The command
-                    // buffer will only be executable on that given queue family.
-                    let mut builder = AutoCommandBufferBuilder::primary(
-                        self.logical_device.as_ref().unwrap().clone(),
-                        self.queue.as_ref().unwrap().family(),
-                        CommandBufferUsage::OneTimeSubmit,
-                        )
-                        .unwrap();
-
-                    builder
-                        // Before we can draw, we have to *enter a render pass*. There are two methods to do
-                        //
-                        // this: `draw_inline` and `draw_secondary`. The latter is a bit more advanced and is
-                        // not covered here.
-                        //
-                        // The third parameter builds the list of values to clear the attachments with. The API
-                        // is similar to the list of attachments when building the framebuffers, except that
-                        // only the attachments that use `load: Clear` appear in the list.
-                        .begin_render_pass(
-                            self.framebuffers.as_ref().unwrap()[self.image_id.unwrap()].clone(),
-                            SubpassContents::Inline,
-                            clear_values,
-                            )
-                        .unwrap()
-                        // We are now inside the first subpass of the render pass. We add a draw command.
-                        //
-                        // The last two parameters contain the list of resources to pass to the shaders.
-                        // Since we used an `EmptyPipeline` object, the objects have to be `()`.
-                        .set_viewport(0, [self.viewport.as_ref().unwrap().clone()])
-                        .bind_pipeline_graphics(self.pipeline.as_ref().unwrap().clone())
-                        .bind_vertex_buffers(0, self.vertex_buffer.as_ref().unwrap().clone())
-                        .draw(self.vertex_buffer.as_ref().unwrap().len() as u32, 1, 0, 0)
-                        .unwrap()
-                        // We leave the render pass by calling `draw_end`. Note that if we had multiple
-                        // subpasses we could have called `next_inline` (or `next_secondary`) to jump to the
-                        // next subpass.
-                        .end_render_pass()
-                        .unwrap();
-
-                    // Finish building the command buffer by calling `build`.
-                    let command_buffer = builder.build().unwrap();
+                    self.build_command_buffer();
 
                     let future = self.previous_frame_end
                         .take()
                         .unwrap()
                         .join(self.acquire_future.take().unwrap())
-                        .then_execute(self.queue.as_ref().unwrap().clone(), command_buffer)
+                        .then_execute(self.queue.as_ref().unwrap().clone(), self.command_buffer.take().unwrap())
                         .unwrap()
                         // The color output is now expected to contain our triangle. But in order to show it on
                         // the screen, we have to *present* the image by calling `present`.
@@ -478,5 +432,30 @@ impl Vulkan {
         if suboptimal {
             self.recreate_swapchain = true;
         }
+    }
+
+    fn build_command_buffer(&mut self) {
+        let clear_values = vec![[0.1, 0.1, 0.1, 1.0].into()];
+
+        let mut builder = AutoCommandBufferBuilder::primary(
+            self.logical_device.as_ref().unwrap().clone(),
+            self.queue.as_ref().unwrap().family(),
+            CommandBufferUsage::OneTimeSubmit,
+            ).unwrap();
+
+        builder.begin_render_pass(
+            self.framebuffers.as_ref().unwrap()[self.image_id.unwrap()].clone(),
+            SubpassContents::Inline,
+            clear_values,
+            ).unwrap()
+            .set_viewport(0, [self.viewport.as_ref().unwrap().clone()])
+            .bind_pipeline_graphics(self.pipeline.as_ref().unwrap().clone())
+            .bind_vertex_buffers(0, self.vertex_buffer.as_ref().unwrap().clone())
+            .draw(self.vertex_buffer.as_ref().unwrap().len() as u32, 1, 0, 0)
+            .unwrap()
+            .end_render_pass()
+            .unwrap();
+
+        self.command_buffer = Some(builder.build().unwrap());
     }
 }
