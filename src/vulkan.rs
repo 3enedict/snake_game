@@ -65,6 +65,8 @@ pub struct Vulkan {
     pipeline:               Option<Arc<GraphicsPipeline>>,
 
     viewport:               Option<Viewport>,
+
+    framebuffers:           Option<Vec<Arc<dyn FramebufferAbstract>>>,
 }
 
 impl Vulkan {
@@ -95,6 +97,8 @@ impl Vulkan {
             pipeline:               None,
 
             viewport:               None,
+
+            framebuffers:           None,
         }
     }
 
@@ -122,12 +126,7 @@ impl Vulkan {
 
         self.create_viewport();
 
-        // The render pass we created above only describes the layout of our framebuffers. Before we
-        // can draw we also need to create the actual framebuffers.
-        //
-        // Since we need to draw to multiple images, we are going to create a different framebuffer for
-        // each image.
-        let mut framebuffers = self.window_size_dependent_setup(&self.images.as_ref().unwrap().clone());
+        self.create_framebuffers();
 
         // Initialization is finally finished!
 
@@ -188,7 +187,7 @@ impl Vulkan {
                         self.swapchain = Some(new_swapchain);
                         // Because framebuffers contains an Arc on the old swapchain, we need to
                         // recreate framebuffers as well.
-                        framebuffers = self.window_size_dependent_setup(&new_images);
+                        self.framebuffers = Some(self.window_size_dependent_setup(&new_images));
                         recreate_swapchain = false;
                     }
 
@@ -244,7 +243,7 @@ impl Vulkan {
                         // is similar to the list of attachments when building the framebuffers, except that
                         // only the attachments that use `load: Clear` appear in the list.
                         .begin_render_pass(
-                            framebuffers[image_num].clone(),
+                            self.framebuffers.as_ref().unwrap()[image_num].clone(),
                             SubpassContents::Inline,
                             clear_values,
                             )
@@ -488,5 +487,9 @@ impl Vulkan {
                     ) as Arc<dyn FramebufferAbstract>
             })
         .collect::<Vec<_>>()
+    }
+
+    fn create_framebuffers(&mut self) {
+        self.framebuffers = Some(self.window_size_dependent_setup(&self.images.as_ref().unwrap().clone()));
     }
 }
