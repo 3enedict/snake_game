@@ -86,6 +86,8 @@ pub struct Vulkan {
     render_pass:            Option<Arc<RenderPass>>,
 
     pipeline:               Option<Arc<GraphicsPipeline>>,
+
+    viewport:               Option<Viewport>,
 }
 
 impl Vulkan {
@@ -114,6 +116,8 @@ impl Vulkan {
             render_pass:            None,
 
             pipeline:               None,
+
+            viewport:               None,
         }
     }
 
@@ -139,20 +143,18 @@ impl Vulkan {
 
         self.create_pipeline();
 
-        // Dynamic viewports allow us to recreate just the viewport when the window is resized
-        // Otherwise we would have to recreate the whole pipeline.
-        let mut viewport = Viewport {
+        self.viewport = Some(Viewport {
             origin: [0.0, 0.0],
             dimensions: [0.0, 0.0],
             depth_range: 0.0..1.0,
-        };
+        });
 
         // The render pass we created above only describes the layout of our framebuffers. Before we
         // can draw we also need to create the actual framebuffers.
         //
         // Since we need to draw to multiple images, we are going to create a different framebuffer for
         // each image.
-        let mut framebuffers = window_size_dependent_setup(self.images.as_ref().unwrap(), self.render_pass.as_ref().unwrap().clone(), &mut viewport);
+        let mut framebuffers = window_size_dependent_setup(self.images.as_ref().unwrap(), self.render_pass.as_ref().unwrap().clone(), &mut self.viewport.as_ref().unwrap());
 
         // Initialization is finally finished!
 
@@ -216,7 +218,7 @@ impl Vulkan {
                         framebuffers = window_size_dependent_setup(
                             &new_images,
                             self.render_pass.as_ref().unwrap().clone(),
-                            &mut viewport,
+                            &mut self.viewport.as_ref().unwrap(),
                             );
                         recreate_swapchain = false;
                     }
@@ -282,7 +284,7 @@ impl Vulkan {
                         //
                         // The last two parameters contain the list of resources to pass to the shaders.
                         // Since we used an `EmptyPipeline` object, the objects have to be `()`.
-                        .set_viewport(0, [viewport.clone()])
+                        .set_viewport(0, [self.viewport.as_ref().unwrap().clone()])
                         .bind_pipeline_graphics(self.pipeline.as_ref().unwrap().clone())
                         .bind_vertex_buffers(0, self.vertex_buffer.as_ref().unwrap().clone())
                         .draw(self.vertex_buffer.as_ref().unwrap().len() as u32, 1, 0, 0)
