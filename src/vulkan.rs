@@ -72,9 +72,8 @@ pub struct Vulkan {
 
     previous_frame_end:     Option<Box<dyn GpuFuture>>,
 
-    image_num:              Option<SwapchainAcquireFuture<Window>>,
-    suboptimal:             Option<usize>,
-    acquire_future:         Option<bool>,
+    image_id:               Option<usize>,
+    acquire_future:         Option<SwapchainAcquireFuture<Window>>,
 } 
 
 impl Vulkan {
@@ -112,8 +111,7 @@ impl Vulkan {
 
             previous_frame_end:     None,
 
-            image_num:              None,
-            suboptimal:             None,
+            image_id:               None,
             acquire_future:         None,
         }
     }
@@ -167,34 +165,7 @@ impl Vulkan {
                         self.recreate_swapchain();
                     }
 
-                    // Before we can draw on the output, we have to *acquire* an image from the swapchain. If
-                    // no image is available (which happens if you submit draw commands too quickly), then the
-                    // function will block.
-                    // This operation returns the index of the image that we are allowed to draw upon.
-                    //
-                    // This function can block if no image is available. The parameter is an optional timeout
-                    // after which the function call will return an error.
-                    let (image_num, suboptimal, acquire_future) =
-                        match swapchain::acquire_next_image(self.swapchain.as_ref().unwrap().clone(), None) {
-                            Ok(r) => r,
-                            Err(AcquireError::OutOfDate) => {
-                                self.recreate_swapchain = true;
-                                return;
-                            }
-                            Err(e) => panic!("Failed to acquire next image: {:?}", e),
-                        };
-
-                    self.image_id = Some(image_num);
-                    self.suboptimal = Some(suboptimal);
-                    self.acquire_future = Some(acquire_future);
-
-
-                    // acquire_next_image can be successful, but suboptimal. This means that the swapchain image
-                    // will still work, but it may not display correctly. With some drivers this can be when
-                    // the window resizes, but it may not cause the swapchain to become out of date.
-                    if suboptimal {
-                        self.recreate_swapchain = true;
-                    }
+                    self.acquire_image();
 
                     // Specify the color to clear the framebuffer with i.e. blue
                     let clear_values = vec![[0.1, 0.1, 0.1, 1.0].into()];
@@ -225,7 +196,7 @@ impl Vulkan {
                         // is similar to the list of attachments when building the framebuffers, except that
                         // only the attachments that use `load: Clear` appear in the list.
                         .begin_render_pass(
-                            self.framebuffers.as_ref().unwrap()[self.image_id.as_ref().unwrap()].clone(),
+                            self.framebuffers.as_ref().unwrap()[self.image_id.unwrap()].clone(),
                             SubpassContents::Inline,
                             clear_values,
                             )
@@ -251,7 +222,7 @@ impl Vulkan {
                     let future = self.previous_frame_end
                         .take()
                         .unwrap()
-                        .join(acquire_future)
+                        .join(self.acquire_future.take().unwrap())
                         .then_execute(self.queue.as_ref().unwrap().clone(), command_buffer)
                         .unwrap()
                         // The color output is now expected to contain our triangle. But in order to show it on
@@ -260,7 +231,7 @@ impl Vulkan {
                         // This function does not actually present the image immediately. Instead it submits a
                         // present command at the end of the queue. This means that it will only be presented once
                         // the GPU has finished executing the command buffer that draws the triangle.
-                        .then_swapchain_present(self.queue.as_ref().unwrap().clone(), self.swapchain.as_ref().unwrap().clone(), self.image_id.as_ref().unwrap())
+                        .then_swapchain_present(self.queue.as_ref().unwrap().clone(), self.swapchain.as_ref().unwrap().clone(), self.image_id.unwrap())
                         .then_signal_fence_and_flush();
 
                     match future {
@@ -500,6 +471,12 @@ impl Vulkan {
                 Err(e) => panic!("Failed to acquire next image: {:?}", e),
             };
 
+        self.image_id = Some(image_id);
+        self.acquire_future = Some(acquire_future);
 
+
+        if suboptimal {
+            self.recreate_swapchain = true;
+        }
     }
 }
