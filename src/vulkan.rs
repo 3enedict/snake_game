@@ -173,34 +173,7 @@ impl Vulkan {
 
                     self.build_command_buffer();
 
-                    let future = self.previous_frame_end
-                        .take()
-                        .unwrap()
-                        .join(self.acquire_future.take().unwrap())
-                        .then_execute(self.queue.as_ref().unwrap().clone(), self.command_buffer.take().unwrap())
-                        .unwrap()
-                        // The color output is now expected to contain our triangle. But in order to show it on
-                        // the screen, we have to *present* the image by calling `present`.
-                        //
-                        // This function does not actually present the image immediately. Instead it submits a
-                        // present command at the end of the queue. This means that it will only be presented once
-                        // the GPU has finished executing the command buffer that draws the triangle.
-                        .then_swapchain_present(self.queue.as_ref().unwrap().clone(), self.swapchain.as_ref().unwrap().clone(), self.image_id.unwrap())
-                        .then_signal_fence_and_flush();
-
-                    match future {
-                        Ok(future) => {
-                            self.previous_frame_end = Some(future.boxed());
-                        }
-                        Err(FlushError::OutOfDate) => {
-                            self.recreate_swapchain = true;
-                            self.previous_frame_end = Some(sync::now(self.logical_device.as_ref().unwrap().clone()).boxed());
-                        }
-                        Err(e) => {
-                            println!("Failed to flush future: {:?}", e);
-                            self.previous_frame_end = Some(sync::now(self.logical_device.as_ref().unwrap().clone()).boxed());
-                        }
-                    }
+                    self.swapchain_present();
                 }
                 _ => (),
             }
@@ -457,5 +430,30 @@ impl Vulkan {
             .unwrap();
 
         self.command_buffer = Some(builder.build().unwrap());
+    }
+
+    fn swapchain_present(&mut self) {
+        let future = self.previous_frame_end
+            .take()
+            .unwrap()
+            .join(self.acquire_future.take().unwrap())
+            .then_execute(self.queue.as_ref().unwrap().clone(), self.command_buffer.take().unwrap())
+            .unwrap()
+            .then_swapchain_present(self.queue.as_ref().unwrap().clone(), self.swapchain.as_ref().unwrap().clone(), self.image_id.unwrap())
+            .then_signal_fence_and_flush();
+
+        match future {
+            Ok(future) => {
+                self.previous_frame_end = Some(future.boxed());
+            }
+            Err(FlushError::OutOfDate) => {
+                self.recreate_swapchain = true;
+                self.previous_frame_end = Some(sync::now(self.logical_device.as_ref().unwrap().clone()).boxed());
+            }
+            Err(e) => {
+                println!("Failed to flush future: {:?}", e);
+                self.previous_frame_end = Some(sync::now(self.logical_device.as_ref().unwrap().clone()).boxed());
+            }
+        }
     }
 }
