@@ -67,7 +67,11 @@ pub struct Vulkan {
     viewport:               Option<Viewport>,
 
     framebuffers:           Option<Vec<Arc<dyn FramebufferAbstract>>>,
-}
+
+    recreate_swapchain:     bool,
+
+    previous_frame_end:     Option<Box<dyn GpuFuture>>,
+} 
 
 impl Vulkan {
     pub fn init() -> Self {
@@ -99,6 +103,10 @@ impl Vulkan {
             viewport:               None,
 
             framebuffers:           None,
+
+            recreate_swapchain:     false,
+
+            previous_frame_end:     None,
         }
     }
 
@@ -128,26 +136,7 @@ impl Vulkan {
 
         self.create_framebuffers();
 
-        // Initialization is finally finished!
-
-        // In some situations, the swapchain will become invalid by itself. This includes for example
-        // when the window is resized (as the images of the swapchain will no longer match the
-        // window's) or, on Android, when the application went to the background and goes back to the
-        // foreground.
-        //
-        // In this situation, acquiring a swapchain image or presenting it will return an error.
-        // Rendering to an image of that swapchain will not produce any error, but may or may not work.
-        // To continue rendering, we need to recreate the swapchain by creating a new swapchain.
-        // Here, we remember that we need to do this for the next loop iteration.
-        let mut recreate_swapchain = false;
-
-        // In the loop below we are going to submit commands to the GPU. Submitting a command produces
-        // an object that implements the `GpuFuture` trait, which holds the resources for as long as
-        // they are in use by the GPU.
-        //
-        // Destroying the `GpuFuture` blocks until the GPU is finished executing it. In order to avoid
-        // that, we store the submission of the previous frame here.
-        let mut previous_frame_end = Some(sync::now(self.logical_device.as_ref().unwrap().clone()).boxed());
+        self.previous_frame_end = Some(sync::now(self.logical_device.as_ref().unwrap().clone()).boxed());
 
         self.event_loop.take().unwrap().run(move |event, _, control_flow| {
             match event {
@@ -161,34 +150,19 @@ impl Vulkan {
                     event: WindowEvent::Resized(_),
                     ..
                 } => {
-                    recreate_swapchain = true;
+                    self.recreate_swapchain = true;
                 }
                 Event::RedrawEventsCleared => {
                     // It is important to call this function from time to time, otherwise resources will keep
                     // accumulating and you will eventually reach an out of memory error.
                     // Calling this function polls various fences in order to determine what the GPU has
                     // already processed, and frees the resources that are no longer needed.
-                    previous_frame_end.as_mut().unwrap().cleanup_finished();
+                    self.previous_frame_end.as_mut().unwrap().cleanup_finished();
 
                     // Whenever the window resizes we need to recreate everything dependent on the window size.
                     // In this example that includes the swapchain, the framebuffers and the dynamic state viewport.
-                    if recreate_swapchain {
-                        // Get the new dimensions of the window.
-                        let dimensions: [u32; 2] = self.surface.as_ref().unwrap().window().inner_size().into();
-                        let (new_swapchain, new_images) =
-                            match self.swapchain.as_ref().unwrap().recreate().dimensions(dimensions).build() {
-                                Ok(r) => r,
-                                // This error tends to happen when the user is manually resizing the window.
-                                // Simply restarting the loop is the easiest way to fix this issue.
-                                Err(SwapchainCreationError::UnsupportedDimensions) => return,
-                                Err(e) => panic!("Failed to recreate swapchain: {:?}", e),
-                            };
-
-                        self.swapchain = Some(new_swapchain);
-                        // Because framebuffers contains an Arc on the old swapchain, we need to
-                        // recreate framebuffers as well.
-                        self.framebuffers = Some(self.window_size_dependent_setup(&new_images));
-                        recreate_swapchain = false;
+                    if self.recreate_swapchain {
+                        self.recreate_swapchain();
                     }
 
                     // Before we can draw on the output, we have to *acquire* an image from the swapchain. If
@@ -202,7 +176,7 @@ impl Vulkan {
                         match swapchain::acquire_next_image(self.swapchain.as_ref().unwrap().clone(), None) {
                             Ok(r) => r,
                             Err(AcquireError::OutOfDate) => {
-                                recreate_swapchain = true;
+                                self.recreate_swapchain = true;
                                 return;
                             }
                             Err(e) => panic!("Failed to acquire next image: {:?}", e),
@@ -212,7 +186,7 @@ impl Vulkan {
                     // will still work, but it may not display correctly. With some drivers this can be when
                     // the window resizes, but it may not cause the swapchain to become out of date.
                     if suboptimal {
-                        recreate_swapchain = true;
+                        self.recreate_swapchain = true;
                     }
 
                     // Specify the color to clear the framebuffer with i.e. blue
@@ -266,7 +240,7 @@ impl Vulkan {
                     // Finish building the command buffer by calling `build`.
                     let command_buffer = builder.build().unwrap();
 
-                    let future = previous_frame_end
+                    let future = self.previous_frame_end
                         .take()
                         .unwrap()
                         .join(acquire_future)
@@ -283,15 +257,15 @@ impl Vulkan {
 
                     match future {
                         Ok(future) => {
-                            previous_frame_end = Some(future.boxed());
+                            self.previous_frame_end = Some(future.boxed());
                         }
                         Err(FlushError::OutOfDate) => {
-                            recreate_swapchain = true;
-                            previous_frame_end = Some(sync::now(self.logical_device.as_ref().unwrap().clone()).boxed());
+                            self.recreate_swapchain = true;
+                            self.previous_frame_end = Some(sync::now(self.logical_device.as_ref().unwrap().clone()).boxed());
                         }
                         Err(e) => {
                             println!("Failed to flush future: {:?}", e);
-                            previous_frame_end = Some(sync::now(self.logical_device.as_ref().unwrap().clone()).boxed());
+                            self.previous_frame_end = Some(sync::now(self.logical_device.as_ref().unwrap().clone()).boxed());
                         }
                     }
                 }
@@ -491,5 +465,19 @@ impl Vulkan {
 
     fn create_framebuffers(&mut self) {
         self.framebuffers = Some(self.window_size_dependent_setup(&self.images.as_ref().unwrap().clone()));
+    }
+
+    fn recreate_swapchain(&mut self) {
+        let dimensions: [u32; 2] = self.surface.as_ref().unwrap().window().inner_size().into();
+        let (new_swapchain, new_images) =
+            match self.swapchain.as_ref().unwrap().recreate().dimensions(dimensions).build() {
+                Ok(r) => r,
+                Err(SwapchainCreationError::UnsupportedDimensions) => return,
+                Err(e) => panic!("Failed to recreate swapchain: {:?}", e),
+            };
+
+        self.swapchain = Some(new_swapchain);
+        self.framebuffers = Some(self.window_size_dependent_setup(&new_images));
+        self.recreate_swapchain = false;
     }
 }
