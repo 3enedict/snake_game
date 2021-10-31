@@ -84,6 +84,8 @@ pub struct Vulkan {
     fs:                     Option<FragmentShader>,
 
     render_pass:            Option<Arc<RenderPass>>,
+
+    pipeline:               Option<Arc<GraphicsPipeline>>,
 }
 
 impl Vulkan {
@@ -110,6 +112,8 @@ impl Vulkan {
             fs:                     None,
 
             render_pass:            None,
+
+            pipeline:               None,
         }
     }
 
@@ -133,31 +137,7 @@ impl Vulkan {
 
         self.create_render_pass();
 
-        // Before we draw we have to create what is called a pipeline. This is similar to an OpenGL
-        // program, but much more specific.
-        let pipeline = Arc::new(
-            GraphicsPipeline::start()
-            // We need to indicate the layout of the vertices.
-            // The type `SingleBufferDefinition` actually contains a template parameter corresponding
-            // to the type of each vertex. But in this code it is automatically inferred.
-            .vertex_input_single_buffer::<Vertex>()
-            // A Vulkan shader can in theory contain multiple entry points, so we have to specify
-            // which one. The `main` word of `main_entry_point` actually corresponds to the name of
-            // the entry point.
-            .vertex_shader(self.vs.as_ref().unwrap().main_entry_point(), ())
-            // The content of the vertex buffer describes a list of triangles.
-            .triangle_list()
-            // Use a resizable viewport set to draw over the entire window
-            .viewports_dynamic_scissors_irrelevant(1)
-            // See `vertex_shader`.
-            .fragment_shader(self.fs.as_ref().unwrap().main_entry_point(), ())
-            // We have to indicate which subpass of which render pass this pipeline is going to be used
-            // in. The pipeline will only be usable from this particular subpass.
-            .render_pass(Subpass::from(self.render_pass.as_ref().unwrap().clone(), 0).unwrap())
-            // Now that our builder is filled, we call `build()` to obtain an actual pipeline.
-            .build(self.logical_device.as_ref().unwrap().clone())
-            .unwrap(),
-            );
+        self.create_pipeline();
 
         // Dynamic viewports allow us to recreate just the viewport when the window is resized
         // Otherwise we would have to recreate the whole pipeline.
@@ -303,7 +283,7 @@ impl Vulkan {
                         // The last two parameters contain the list of resources to pass to the shaders.
                         // Since we used an `EmptyPipeline` object, the objects have to be `()`.
                         .set_viewport(0, [viewport.clone()])
-                        .bind_pipeline_graphics(pipeline.clone())
+                        .bind_pipeline_graphics(self.pipeline.as_ref().unwrap().clone())
                         .bind_vertex_buffers(0, self.vertex_buffer.as_ref().unwrap().clone())
                         .draw(self.vertex_buffer.as_ref().unwrap().len() as u32, 1, 0, 0)
                         .unwrap()
@@ -474,21 +454,35 @@ impl Vulkan {
 
     fn create_render_pass(&mut self) {
         self.render_pass = Some(Arc::new(
-            vulkano::single_pass_renderpass!(
-                self.logical_device.as_ref().unwrap().clone(),
-                attachments: {
-                    color: {
-                        load: Clear,
-                        store: Store,
-                        format: self.swapchain.as_ref().unwrap().format(),
-                        samples: 1,
+                vulkano::single_pass_renderpass!(
+                    self.logical_device.as_ref().unwrap().clone(),
+                    attachments: {
+                        color: {
+                            load: Clear,
+                            store: Store,
+                            format: self.swapchain.as_ref().unwrap().format(),
+                            samples: 1,
+                        }
+                    },
+                    pass: {
+                        color: [color],
+                        depth_stencil: {}
                     }
-                },
-                pass: {
-                    color: [color],
-                    depth_stencil: {}
-                }
-        )
+                    )
+                .unwrap(),
+                ));
+    }
+
+    fn create_pipeline(&mut self) {
+        self.pipeline = Some(Arc::new(
+            GraphicsPipeline::start()
+            .vertex_input_single_buffer::<Vertex>()
+            .vertex_shader(self.vs.as_ref().unwrap().main_entry_point(), ())
+            .triangle_list()
+            .viewports_dynamic_scissors_irrelevant(1)
+            .fragment_shader(self.fs.as_ref().unwrap().main_entry_point(), ())
+            .render_pass(Subpass::from(self.render_pass.as_ref().unwrap().clone(), 0).unwrap())
+            .build(self.logical_device.as_ref().unwrap().clone())
             .unwrap(),
             ));
     }
