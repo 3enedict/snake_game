@@ -153,14 +153,8 @@ impl Vulkan {
                     self.recreate_swapchain = true;
                 }
                 Event::RedrawEventsCleared => {
-                    // It is important to call this function from time to time, otherwise resources will keep
-                    // accumulating and you will eventually reach an out of memory error.
-                    // Calling this function polls various fences in order to determine what the GPU has
-                    // already processed, and frees the resources that are no longer needed.
                     self.previous_frame_end.as_mut().unwrap().cleanup_finished();
 
-                    // Whenever the window resizes we need to recreate everything dependent on the window size.
-                    // In this example that includes the swapchain, the framebuffers and the dynamic state viewport.
                     if self.recreate_swapchain {
                         self.recreate_swapchain();
                     }
@@ -181,6 +175,11 @@ impl Vulkan {
                             }
                             Err(e) => panic!("Failed to acquire next image: {:?}", e),
                         };
+
+                    print_type_of(&image_num);
+                    print_type_of(&suboptimal);
+                    print_type_of(&acquire_future);
+
 
                     // acquire_next_image can be successful, but suboptimal. This means that the swapchain image
                     // will still work, but it may not display correctly. With some drivers this can be when
@@ -479,5 +478,18 @@ impl Vulkan {
         self.swapchain = Some(new_swapchain);
         self.framebuffers = Some(self.window_size_dependent_setup(&new_images));
         self.recreate_swapchain = false;
+    }
+
+    fn acquire_image(&mut self) {
+        let (image_id, suboptimal, acquire_future) =
+            match swapchain::acquire_next_image(self.swapchain.as_ref().unwrap().clone(), None) {
+                Ok(r) => r,
+                Err(AcquireError::OutOfDate) => {
+                    self.recreate_swapchain = true;
+                    return;
+                }
+                Err(e) => panic!("Failed to acquire next image: {:?}", e),
+            };
+
     }
 }
