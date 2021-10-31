@@ -11,7 +11,7 @@ use vulkano::pipeline::viewport::Viewport;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::render_pass::{Framebuffer, FramebufferAbstract, RenderPass, Subpass};
 use vulkano::swapchain;
-use vulkano::swapchain::{AcquireError, Swapchain, SwapchainCreationError, Surface};
+use vulkano::swapchain::{AcquireError, SwapchainAcquireFuture, Swapchain, SwapchainCreationError, Surface};
 use vulkano::sync;
 use vulkano::sync::{FlushError, GpuFuture};
 use vulkano::Version;
@@ -71,6 +71,10 @@ pub struct Vulkan {
     recreate_swapchain:     bool,
 
     previous_frame_end:     Option<Box<dyn GpuFuture>>,
+
+    image_num:              Option<SwapchainAcquireFuture<Window>>,
+    suboptimal:             Option<usize>,
+    acquire_future:         Option<bool>,
 } 
 
 impl Vulkan {
@@ -107,6 +111,10 @@ impl Vulkan {
             recreate_swapchain:     false,
 
             previous_frame_end:     None,
+
+            image_num:              None,
+            suboptimal:             None,
+            acquire_future:         None,
         }
     }
 
@@ -176,9 +184,9 @@ impl Vulkan {
                             Err(e) => panic!("Failed to acquire next image: {:?}", e),
                         };
 
-                    print_type_of(&image_num);
-                    print_type_of(&suboptimal);
-                    print_type_of(&acquire_future);
+                    self.image_id = Some(image_num);
+                    self.suboptimal = Some(suboptimal);
+                    self.acquire_future = Some(acquire_future);
 
 
                     // acquire_next_image can be successful, but suboptimal. This means that the swapchain image
@@ -216,7 +224,7 @@ impl Vulkan {
                         // is similar to the list of attachments when building the framebuffers, except that
                         // only the attachments that use `load: Clear` appear in the list.
                         .begin_render_pass(
-                            self.framebuffers.as_ref().unwrap()[image_num].clone(),
+                            self.framebuffers.as_ref().unwrap()[self.image_id.as_ref().unwrap()].clone(),
                             SubpassContents::Inline,
                             clear_values,
                             )
@@ -251,7 +259,7 @@ impl Vulkan {
                         // This function does not actually present the image immediately. Instead it submits a
                         // present command at the end of the queue. This means that it will only be presented once
                         // the GPU has finished executing the command buffer that draws the triangle.
-                        .then_swapchain_present(self.queue.as_ref().unwrap().clone(), self.swapchain.as_ref().unwrap().clone(), image_num)
+                        .then_swapchain_present(self.queue.as_ref().unwrap().clone(), self.swapchain.as_ref().unwrap().clone(), self.image_id.as_ref().unwrap())
                         .then_signal_fence_and_flush();
 
                     match future {
