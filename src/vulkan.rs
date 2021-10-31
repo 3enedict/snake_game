@@ -39,29 +39,6 @@ fn print_type_of<T>(_: &T) {
     println!("{}", std::any::type_name::<T>())
 }
 
-fn window_size_dependent_setup(
-    images: &[Arc<SwapchainImage<Window>>],
-    render_pass: Arc<RenderPass>,
-    viewport: &mut Viewport,
-    ) -> Vec<Arc<dyn FramebufferAbstract>> {
-    let dimensions = images[0].dimensions();
-    viewport.dimensions = [dimensions[0] as f32, dimensions[1] as f32];
-
-    images
-        .iter()
-        .map(|image| {
-            let view = ImageView::new(image.clone()).unwrap();
-            Arc::new(
-                Framebuffer::start(render_pass.clone())
-                .add(view)
-                .unwrap()
-                .build()
-                .unwrap(),
-                ) as Arc<dyn FramebufferAbstract>
-        })
-    .collect::<Vec<_>>()
-}
-
 pub struct Vulkan {
     required_extensions:    Option<InstanceExtensions>,
     instance:               Option<Arc<Instance>>,
@@ -143,18 +120,14 @@ impl Vulkan {
 
         self.create_pipeline();
 
-        self.viewport = Some(Viewport {
-            origin: [0.0, 0.0],
-            dimensions: [0.0, 0.0],
-            depth_range: 0.0..1.0,
-        });
+        self.create_viewport();
 
         // The render pass we created above only describes the layout of our framebuffers. Before we
         // can draw we also need to create the actual framebuffers.
         //
         // Since we need to draw to multiple images, we are going to create a different framebuffer for
         // each image.
-        let mut framebuffers = window_size_dependent_setup(self.images.as_ref().unwrap(), self.render_pass.as_ref().unwrap().clone(), &mut self.viewport.as_ref().unwrap());
+        let mut framebuffers = self.window_size_dependent_setup(&self.images.as_ref().unwrap().clone());
 
         // Initialization is finally finished!
 
@@ -215,11 +188,7 @@ impl Vulkan {
                         self.swapchain = Some(new_swapchain);
                         // Because framebuffers contains an Arc on the old swapchain, we need to
                         // recreate framebuffers as well.
-                        framebuffers = window_size_dependent_setup(
-                            &new_images,
-                            self.render_pass.as_ref().unwrap().clone(),
-                            &mut self.viewport.as_ref().unwrap(),
-                            );
+                        framebuffers = self.window_size_dependent_setup(&new_images);
                         recreate_swapchain = false;
                     }
 
@@ -477,15 +446,47 @@ impl Vulkan {
 
     fn create_pipeline(&mut self) {
         self.pipeline = Some(Arc::new(
-            GraphicsPipeline::start()
-            .vertex_input_single_buffer::<Vertex>()
-            .vertex_shader(self.vs.as_ref().unwrap().main_entry_point(), ())
-            .triangle_list()
-            .viewports_dynamic_scissors_irrelevant(1)
-            .fragment_shader(self.fs.as_ref().unwrap().main_entry_point(), ())
-            .render_pass(Subpass::from(self.render_pass.as_ref().unwrap().clone(), 0).unwrap())
-            .build(self.logical_device.as_ref().unwrap().clone())
-            .unwrap(),
-            ));
+                GraphicsPipeline::start()
+                .vertex_input_single_buffer::<Vertex>()
+                .vertex_shader(self.vs.as_ref().unwrap().main_entry_point(), ())
+                .triangle_list()
+                .viewports_dynamic_scissors_irrelevant(1)
+                .fragment_shader(self.fs.as_ref().unwrap().main_entry_point(), ())
+                .render_pass(Subpass::from(self.render_pass.as_ref().unwrap().clone(), 0).unwrap())
+                .build(self.logical_device.as_ref().unwrap().clone())
+                .unwrap(),
+                ));
+    }
+
+    fn create_viewport(&mut self) {
+        self.viewport = Some(Viewport {
+            origin: [0.0, 0.0],
+            dimensions: [0.0, 0.0],
+            depth_range: 0.0..1.0,
+        });
+    }
+
+    fn window_size_dependent_setup(&mut self, images: &[Arc<SwapchainImage<Window>>]) -> Vec<Arc<dyn FramebufferAbstract>> {
+        let dimensions = images[0].dimensions();
+
+        self.viewport = Some(Viewport {
+            origin: [0.0, 0.0],
+            dimensions: [dimensions[0] as f32, dimensions[1] as f32],
+            depth_range: 0.0..1.0,
+        });
+
+        images
+            .iter()
+            .map(|image| {
+                let view = ImageView::new(image.clone()).unwrap();
+                Arc::new(
+                    Framebuffer::start(self.render_pass.as_ref().unwrap().clone())
+                    .add(view)
+                    .unwrap()
+                    .build()
+                    .unwrap(),
+                    ) as Arc<dyn FramebufferAbstract>
+            })
+        .collect::<Vec<_>>()
     }
 }
