@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+vgl = { path = "../vgl" }
 vulkano = "0.26.0"
 vulkano-win = "0.26.0"
 vulkano-shaders = "0.26.0"
