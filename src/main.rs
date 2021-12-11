@@ -1,5 +1,5 @@
-use vgl::start;
+use vgl::renderer::VglRenderer;
 
 fn main() {
-    start();
+    VglRenderer::new();
 }
