@@ -1,5 +1,7 @@
 use vgl::renderer::VglRenderer;
 
 fn main() {
-    VglRenderer::new();
+    let renderer = VglRenderer::new();
+
+    renderer.run();
 }
