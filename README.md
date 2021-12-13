@@ -10,7 +10,7 @@ This program depends on a library that I'm still creating and I have not yet put
 
 ```bash
 git clone https://github.com/BPN06/vgl
-git clone https://github.com/BPN06/Snake-Game
+git clone https://github.com/BPN06/snake_game
 cd snake_game
 cargo run
 ```
