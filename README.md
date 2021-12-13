@@ -2,14 +2,19 @@ You know how people LOVE over-engineering stuff ? Well, this is that, but in pro
 
 # IMPORTANT
 
-THIS PROJECT IS STILL IN DEVELOPMENT.
+THIS PROJECT IS STILL IN DEVELOPMENT, AND MAY BE SO FOR A BIT !! Currently it's only able to create a triangle (and it ain't perfect yet, so...)
 
-# Building
+# Downloading and building
+
+This program depends on a library that I'm still creating and I have not yet put it straight into cargo. So for now, just download it seperately as shown here : 
 
 ```bash
+git clone https://github.com/BPN06/vgl
+git clone https://github.com/BPN06/Snake-Game
+cd snake_game
 cargo run
 ```
-
+<!-- 
 # Testing
 
 ```bash
@@ -17,3 +22,4 @@ cargo test -- --test-threads=1
 ```
 
 The test-threads option needed to be added because winit only supports being run in the main thread. 
+-->
