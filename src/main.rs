@@ -1,4 +1,5 @@
 use vgl::renderer::VglRenderer;
+use vgl::renderer::core::parameters::VglRendererParameters;
 
 use vgl::objects::vertex::Vertex;
 
@@ -18,7 +19,7 @@ fn system(renderer: &mut VglRenderer) {
 }
 
 fn main() {
-    VglRenderer::new()
+    VglRenderer::new(VglRendererParameters::default())
         .add_system_setup(system)
         .run();
 }
