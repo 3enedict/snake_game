@@ -1,7 +1,7 @@
 use vgl::renderer::VglRenderer;
 use vgl::renderer::core::parameters::VglRendererParameters;
 
-use vgl::objects::vertex::Vertex;
+use vgl::object::vertex::Vertex;
 
 fn system(renderer: &mut VglRenderer) {
     let mut rectangle = vec!
