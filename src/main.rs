@@ -6,10 +6,10 @@ use vgl::object::vertex::Vertex;
 fn system(renderer: &mut VglRenderer) {
     let mut rectangle = vec!
         [
-        Vertex{ position: [-0.5, -0.5] },
-        Vertex{ position: [ 0.5, -0.5] },
-        Vertex{ position: [ 0.5,  0.5] },
-        Vertex{ position: [-0.5,  0.5] },
+            Vertex{ position: [-0.5, -0.5] },
+            Vertex{ position: [ 0.5, -0.5] },
+            Vertex{ position: [ 0.5,  0.5] },
+            Vertex{ position: [-0.5,  0.5] },
         ];
 
     let mut indices = vec![0, 1, 2, 2, 3, 0];
