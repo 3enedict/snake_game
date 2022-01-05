@@ -4,17 +4,14 @@ use vgl::renderer::core::parameters::VglRendererParameters;
 use vgl::object::vertex::Vertex;
 
 fn system(renderer: &mut VglRenderer) {
-    let mut rectangle = vec!
+    let mut square = vec!
         [
-            Vertex{ position: [-0.5, -0.5] },
-            Vertex{ position: [ 0.5, -0.5] },
-            Vertex{ position: [ 0.5,  0.5] },
-            Vertex{ position: [-0.5,  0.5] },
+        Vertex { position: [ 0.0,  0.0] },
         ];
 
-    let mut indices = vec![0, 1, 2, 2, 3, 0];
+    let mut sizes = vec![0.1];
 
-    renderer.add_rectangles(&mut rectangle, &mut indices);
+    renderer.add_squares(&mut square, &mut sizes);
 }
 
 fn main() {
