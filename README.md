@@ -2,7 +2,9 @@ You know how people LOVE over engineering stuff ? Well, this is that, but in pro
 
 # IMPORTANT
 
-THIS PROJECT IS STILL IN DEVELOPMENT, AND MAY BE SO FOR A BIT !! Currently it's only able to create a triangle (and it ain't perfect yet, so...)
+THIS PROJECT CURRENTLY ISN'T MAINTAINED. All the development is going into vgl.
+
+THIS PROJECT IS STILL IN DEVELOPMENT, AND MAY BE SO FOR A BIT !! 
 
 # Downloading and building
 
@@ -14,12 +16,3 @@ git clone https://github.com/BPN06/snake_game
 cd snake_game
 cargo run
 ```
-<!-- 
-# Testing
-
-```bash
-cargo test -- --test-threads=1
-```
-
-The test-threads option needed to be added because winit only supports being run in the main thread. 
--->
